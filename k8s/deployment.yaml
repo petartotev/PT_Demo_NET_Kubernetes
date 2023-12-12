@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demonetkubernetes-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demonetkubernetes
+  template:
+    metadata:
+      labels:
+        app: demonetkubernetes
+    spec:
+      containers:
+      - name: demonetkubernetes
+        image: petartotev/demonetkubernetes:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"
+          limits:
+            cpu: "500m"

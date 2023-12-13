@@ -5,7 +5,9 @@
 - [Prerequisites](#prerequisites)
 - [Setup](#setup)
 - [Add Horizontal Pod Autoscaling](#add-horizontal-pod-autoscaling-hpa)
-- [Use Helm Chart](#using-helm-chart)
+- Helm Chart
+  - [Using Helm Chart with HPA (CPU)](#using-helm-chart-with-hpa-cpu)
+  - [Expand Helm Chart with HPA (CPU + Memory)](#expand-helm-chart-with-hpa-cpu--memory)
 - [Teardown](#teardown)
 - [Commands](#commands)
 - [Terms](#terms)
@@ -13,14 +15,14 @@
 
 ## Prerequisites
 
-1. Install `Docker Desktop`.
+1. Install `Docker Desktop` from [here](https://www.docker.com/products/docker-desktop/).
 
 2. Enable `Kubernetes` in Docker Desktop:
 ```
 Docker Desktop > Settings > Kubernetes > [v] Enable Kubernetes
 ```
 
-3. Check that you have `kubectl` CLI by using any of the following commands:
+3. Make sure you have `kubectl` CLI by using any of the following commands:
 ```
 kubectl version
 kubectl --help
@@ -34,7 +36,7 @@ On Windows, open Power Shell `as Admin` and execute the following command:
 choco install kubernetes-helm
 ```
 
-5. Check that you have `helm` CLI installed by using any of the following commands:
+5. Make sure you have `helm` CLI by using any of the following commands:
 ```
 helm version
 helm --help
@@ -44,9 +46,9 @@ helm --help
 
 1. Create a new .NET blank solution `PT_Demo_NET_Kubernetes`.
 
-2. Create a new .NET Web API project `DemoNetKubernetes`.
+2. Create a new .NET Web API project `DemoNetKubernetes` in the solution.
 
-3. Introduce CpuController and MemoryController having endpoints that process CPU / Memory intensive workloads.
+3. Introduce CpuController and MemoryController having endpoints which process CPU / Memory intensive operations.
 
 4. Create `Dockerfile` in the DemoNetKubernetes.csproj directory:
 ```
@@ -79,7 +81,7 @@ docker build -t petartotev/demonetkubernetes:latest .
 docker push petartotev/demonetkubernetes:latest
 ```
 
-6. Create a /k8s directory and add the following files:
+6. Create a `/k8s` directory and add the following files:
 - `deployment.yaml`
 ```
 apiVersion: apps/v1
@@ -103,7 +105,7 @@ spec:
         - containerPort: 80
 ```
 
-- `service.yaml`
+- `service.yaml` - file for exposing the service using NodePort
 ```
 apiVersion: v1
 kind: Service
@@ -119,13 +121,13 @@ spec:
       targetPort: 80
 ```
 
-Apply `deployment.yaml` and `service.yaml` configuration:
+Apply `deployment.yaml` and `service.yaml` configurations:
 ```
 kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
 ```
 
-8. Get the service by using the following command:
+8. Check the status of your service:
 ```
 kubectl get service demonetkubernetes-service
 ```
@@ -144,14 +146,19 @@ http://localhost:31129/cpu/doload/{number-of-operations}
 
 ## Add Horizontal Pod Autoscaling (HPA)
 
+Horizontal Pod Autoscaling (HPA) in Kubernetes allows you to automatically adjust the number of replica pods in a deployment based on observed CPU utilization or custom metrics.
+
+0. All steps from the [Setup section](#setup) need to be accomplished before proceeding with this section.
+
 1. Horizontal Pod Autoscaler relies on metrics provided by the `Metrics Server`.<br>Make sure Metrics Server is installed and running in your cluster:
 
 ```
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 ```
 
-2. Update existing `deployment.yaml` file created in the [Setup section](#setup) to include `resource requests and limits for CPU`.
-<br>This is necessary for HPA to work with CPU metrics.:
+⚠️ WARNING: This step will later fail. Check steps 4-10 to see the whole story! 
+
+2. Update existing `deployment.yaml` file created in the [Setup section](#setup) to include `resources, requests and limits for CPU`. This is necessary for HPA to work with CPU metrics:
 
 ```
 apiVersion: apps/v1
@@ -237,9 +244,12 @@ Reapply `hpa.yaml` configuration:
 ```
 kubectl apply -f hpa.yaml
 ```
-✅ SUCCESS: The expected output should be:
+✅ SUCCESS: Created resource!
 
-<font color="cyan">horizontalpodautoscaler.autoscaling/demonetkubernetes-hpa created</font>
+Output:
+```
+horizontalpodautoscaler.autoscaling/demonetkubernetes-hpa created
+```
 
 4. Check the status of HPA:
 
@@ -252,9 +262,9 @@ NAME                    REFERENCE                                 TARGETS       
 demonetkubernetes-hpa   Deployment/demonetkubernetes-deployment   <unknown>/50%   1         5         2          4m20s
 ```
 
-⚠️ WARNING: TARGETS value `<unknown>/50%` is unexpected. The current CPU usage taken by `metrics-server` should have allegedly appeared there.<br>Seems like the `metrics-server` doesn't respond.
+⚠️ WARNING: TARGETS value `<unknown>/50%` is unexpected. The current CPU usage taken by `metrics-server` should have allegedly appeared there. It seems that `metrics-server` doesn't respond!
 
-5. List all the kube-systems:
+5. List all the `kube-systems`:
 
 ```
 kubectl get pods -n kube-system
@@ -275,29 +285,28 @@ storage-provisioner                      1/1     Running   0          39m
 vpnkit-controller                        1/1     Running   0          39m
 ```
 
-6. Check the logs of the `metrics-server`:
+6. Check `metrics-server` logs:
 ```
 kubectl logs -n kube-system metrics-server-fbb469ccc-w8s7x
 ```
 
 ⚠️ WARNING: The following issue occurs repetitively in logs:
 
-<font color="red">I1212 22:22:11.887952       1 server.go:187] "Failed probe" probe="metric-storage-ready" err="no metrics to serve"
-
+<font color="red">I1212 22:22:11.887952       1 server.go:187] "Failed probe" probe="metric-storage-ready" err="no metrics to serve".
 E1212 22:22:17.501977       1 scraper.go:140] "Failed to scrape node" err="Get \"https://192.168.65.3:10250/metrics/resource\": x509: cannot validate certificate for 192.168.65.3 because it doesn't contain any IP SANs" node="docker-desktop"</font>
 
 💡 Check the following [github discussion](https://github.com/kubernetes-sigs/metrics-server/issues/1025):
 
 <font color="cyan">Default metrics server configuration requires proper certificate configuration as documented in https://github.com/kubernetes-sigs/metrics-server#requirements.</font>
 
-7. Delete the ```metrics-server```:
+7. Delete ```metrics-server```:
 
 ```
 kubectl delete pod -n kube-system <metrics-server-pod-name>
 ```
 
-8. Download the `components.yaml` file from step 1 and place in the `/k8s` directory.
-<br>Add `--kubelet-insecure-tls` arg in the Deployment section as follows:
+8. Download `components.yaml` file from step 1 and place it in the `/k8s` directory.
+<br>Next, add `--kubelet-insecure-tls` arg in the Deployment section as follows:
 
 ```
 ---
@@ -334,7 +343,7 @@ deployment.apps/metrics-server configured
 apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io unchanged
 ```
 
-9. Check `metrics-server` logs => ✅:
+9. Check `metrics-server` logs:
 
 ```
 kubectl logs -n kube-system metrics-server-85cbcbdd74-zcg5j
@@ -358,7 +367,9 @@ I1212 22:56:32.246457       1 shared_informer.go:247] Caches are synced for clie
 I1212 22:56:32.246466       1 shared_informer.go:247] Caches are synced for client-ca::kube-system::extension-apiserver-authentication::client-ca-file
 ```
 
-10. Check the status of HPA => ✅:
+✅ SUCCESS: `Metrics-server` is now working properly.
+
+10. Check the status of HPA:
 
 ```
 kubectl get hpa
@@ -370,27 +381,27 @@ NAME                    REFERENCE                                 TARGETS   MINP
 demonetkubernetes-hpa   Deployment/demonetkubernetes-deployment   1%/50%    1         5         1          14m
 ```
 
-✅ SUCCESS: Note that TARGETS is not `<unknown>/50%` anymore - it has a value of `1%/50%`.
+✅ SUCCESS: TARGETS is not `<unknown>/50%` anymore - it has a value of `1%/50%`, taken from the metrics of the running pods.
 
 11. Test
 
-Currently, there is only 1 pod due to the functioning HPA:
+Before, there was only 1 pod due to HPA (`minReplicas: 1`):
 
-![hpa-success-1.png](./res/hpa-success-1.png)
+![hpa-cpu-success-1.png](./res/hpa-cpu-success-1.png)
 
-Push the CPU by calling one of the following endpoints:
+Push CPU usage by calling the CPU-intensive endpoint:
 ```
 http://localhost:31129/cpu/doload/100000000
 http://localhost:31129/cpu/doload/2147483646
 ```
 
-Now, the HPA increased the number of pods to 5:
+Now, HPA increased the number of pods to 5 (`maxReplicas: 5`):
 
-![hpa-success-2.png](./res/hpa-success-2.png)
+![hpa-cpu-success-2.png](./res/hpa-cpu-success-2.png)
 
-~ HAPPY END ~
+## Using Helm Chart with HPA (CPU)
 
-## Using Helm Chart
+0. Reset the Kubernetes Cluster by following the instructions in the [Teardown section](#teardown)
 
 1. Apply `components.yaml` configuration created in the [HPA section](#add-horizontal-pod-autoscaling-hpa):
 
@@ -411,14 +422,15 @@ deployment.apps/metrics-server created
 apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io created
 ```
 
-2. Create Helm chart in the PT_Demo_NET_Kubernetes parent directory:
+2. Create new `Helm Chart` in the parent directory:
 
 ```
 helm create helm-chart
 cd helm-chart
 ```
 
-3. Delete all content from the created `values.yaml` and replace it with:
+3. Delete all content from `values.yaml` and replace it with:
+
 ```
 # helm-chart/values.yaml
 
@@ -441,24 +453,13 @@ autoscaling:
   targetCPUUtilizationPercentage: 50
 ```
 
-4. Remove the existing /template folder and create a new /template folder containing the following files:
+4. Remove all existing content from `/templates` folder and create the following files (see the finalized content of the files in `./helm-chart/templates`):
 
 - deployment.yaml
-```
-See content of existing file in ./helm-chart/templates/deployment.yaml
-```
-
 - service.yaml
-```
-See content of existing file in ./helm-chart/templates/hpservicea.yaml
-```
-
 - hpa.yaml
-```
-See content of existing file in ./helm-chart/templates/hpa.yaml
-```
 
-5. Install the Helm chart:
+5. Install the `Helm Chart`:
 ```
 helm install demo-release ./helm-chart
 ```
@@ -473,13 +474,6 @@ REVISION: 1
 TEST SUITE: None
 ```
 
-N.B. In case you need to change any of the template files or values.yaml you don't need to reset the whole Kubernetes cluster!
-You just need to execute the following command:
-
-```
-helm upgrade demo-release ./helm-chart
-```
-
 6. Check the status of HPA:
 
 ```
@@ -492,9 +486,9 @@ NAME                REFERENCE                      TARGETS         MINPODS   MAX
 demo-release-helm   Deployment/demo-release-helm   <unknown>/50%   1         5         1          4m25s
 ```
 
-⚠️ WARNING: TARGETS value `<unknown>/50%` is unexpected. The current CPU usage taken by `metrics-server` should have allegedly appeared there.<br>Seems like the `metrics-server` doesn't respond.
+⚠️ WARNING: TARGETS value `<unknown>/50%` is unexpected. The current CPU usage taken by `metrics-server` should have allegedly appeared there. It seems that `metrics-server` doesn't respond!
 
-7. Verify that the HPA is correctly configured to use metrics provided by Metrics Server:
+7. Verify that `HPA` is correctly configured to use metrics provided by Metrics Server:
 
 ```
 kubectl describe hpa demo-release-helm
@@ -527,7 +521,7 @@ Events:
   Warning  FailedComputeMetricsReplicas  38s (x4 over 3m38s)  horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: missing request for cpu in container helm of Pod demo-release-helm-56fcc7bd5b-xj9n8
 ```
 
-8. Edit the `/templates/deployment.yaml` file and add the following:
+8. Edit `/templates/deployment.yaml` file and by adding the following:
 ```
 containers:
   - name: {{ .Chart.Name }}
@@ -539,7 +533,7 @@ containers:
         cpu: 100m
 ```
 
-9. Reinstall the Helm Chart:
+9. Reinstall the `Helm Chart`:
 
 ```
 helm upgrade demo-release ./helm-demo
@@ -547,16 +541,104 @@ helm upgrade demo-release ./helm-demo
 
 10. Test
 
-Before, there was only 1 pod due to the functioning HPA.
+Before, there was only 1 pod due to HPA (`minReplicas: 1`).
 
-Push the CPU by calling the endpoint:
+Push CPU usage by calling the CPU-intensive endpoint:
+
 ```
 http://localhost:31129/cpu/doload/100000000
 ```
 
-After, the HPA increased the number of pods to 5.
+Now, HPA increased the number of pods to 5 (`maxReplicas: 5`).
 
-~ HAPPY END ~
+## Expand Helm Chart with HPA (CPU + Memory)
+
+0. Do all steps from the previous section.
+
+1. Update `resources` section of `deployment.yaml` in `/templates` to include `memory` requests value:
+
+```
+# helm-chart/templates/deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  ...
+spec:
+  ...
+  template:
+    ...
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+```
+
+2. Update `values.yaml`:
+
+```
+...
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 50
+  targetMemoryUtilizationPercentage: 50
+```
+
+3. Update `hpa.yaml`:
+
+```
+...
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Release.Name }}-{{ .Chart.Name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  targetCPUUtilizationPercentage: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+  targetMemoryUtilizationPercentage: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+```
+
+4. Upgrade Helm Chart:
+
+```
+helm upgrade demo-release ./helm-demo
+```
+
+5. Check the status of HPA:
+
+```
+kubectl get hpa
+```
+
+6. Describe the HPA to see if there are any events that provide information about the HPA's decision-making process:
+
+```
+kubectl describe hpa <hpa-name>
+```
+
+7. Test
+
+Push Memory usage by calling the Memory-intensive endpoint a few times:
+```
+http://localhost:31348/memory/doload/10000
+```
+
+Before, there was only 1 pod due to HPA (`minReplicas: 1`):
+
+![hpa-memory-success--1.png](./res/hpa-memory-success-1.png)
+
+Now, HPA increased the number of pods to 5 (`maxReplicas: 5`):
+
+![hpa-memory-success--2.png](./res/hpa-memory-success-2.png)
 
 ## Teardown
 
@@ -572,14 +654,35 @@ kubectl delete deployments,services --all
 
 ## Commands
 
+### docker
+```docker build -t user/projectname:latest .```  
+```docker push user/projectname:latest```  
+
 ### kubectl
+```kubectl apply -f deployment.yaml```
+
+```kubectl apply -f service.yaml```  
 ```kubectl get services```  
-```kubectl get hpa```
+```kubectl get service projectname-service```  
+
+```kubectl apply -f hpa.yaml```  
+```kubectl get hpa```  
+```kubectl describe hpa```  
+
+```kubectl describe pod <pod-name>```  
+```kubectl describe deployment <deployment-name>```  
+
+```kubectl get pods -n kube-system```  
+```kubectl logs -n kube-system metrics-server-fbb469ccc-w8s7x```  
+```kubectl delete pod -n kube-system <metrics-server-pod-name>```  
+
+```kubectl delete deployments,services --all```  
 
 ### helm
 ```helm create helm-chart```  
 ```helm install demo-release ./helm-chart```  
-```helm upgrade demo-release ./helm-demo```
+```helm upgrade demo-release ./helm-demo```  
+```helm uninstall demo-release```
 
 ## Terms
 - [Helm](https://helm.sh/docs/) = the package manager for Kubernetes
@@ -587,3 +690,5 @@ kubectl delete deployments,services --all
 ## Links
 - https://forums.docker.com/t/unable-to-install-kubernetes-stuck-on-starting-state/117048
 - https://github.com/kubernetes-sigs/metrics-server/issues/1025
+- https://github.com/kubernetes-sigs/metrics-server#requirements
+- https://stackoverflow.com/questions/59448042/kubernetes-hpa-deployment-cannot-find-target-resource

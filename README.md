@@ -4,6 +4,9 @@
 
 - [Prerequisites](#prerequisites)
 - [Setup](#setup)
+- [Add Horizontal Pod Autoscaling](#add-horizontal-pod-autoscaling-hpa)
+    - [The whole journey](#the-whole-hpa-journey)
+    - [TLDR](#tldr)
 - [Teardown](#teardown)
 - [Terms](#terms)
 - [Links](#links)
@@ -39,11 +42,11 @@ helm --help
 
 ## Setup
 
-1. Create a new .NET blank solution `PT_Demo_NET_Kubernetes`
+1. Create a new .NET blank solution `PT_Demo_NET_Kubernetes`.
 
-2. Create a new .NET Web API project `DemoNetKubernetes`
+2. Create a new .NET Web API project `DemoNetKubernetes`.
 
-3. Introduce Memory- and Cpu- Controllers with endpoints processing Memory / CPU intensive workloads.
+3. Introduce CpuController and MemoryController having endpoints that process CPU / Memory intensive workloads.
 
 4. Create `Dockerfile` in the DemoNetKubernetes.csproj directory:
 ```
@@ -69,7 +72,7 @@ COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "DemoNetKubernetes.dll"]
 ```
 
-5. Build `Docker Image` and push it in Docker Hub
+5. Build `Docker Image` and push it in Docker Hub:
 
 ```
 docker build -t petartotev/demonetkubernetes:latest .
@@ -98,11 +101,6 @@ spec:
         image: petartotev/demonetkubernetes:latest
         ports:
         - containerPort: 80
-        resources:
-          requests:
-            cpu: "100m"
-          limits:
-            cpu: "500m"
 ```
 
 - `service.yaml`
@@ -137,12 +135,392 @@ NAME                        TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)    
 demonetkubernetes-service   NodePort   10.102.113.24   <none>        80:31129/TCP   2m
 ```
 
-9. Finally, get the external port and access the application using the following URL:
+9. Finally, get the external port from PORT(S) and access the application using the following URL:
 ```
 http://localhost:31129/cpu/doload/{number-of-operations}
 ```
 
 ![happy-end](./res/scrot_demo_01.png)
+
+## Add Horizontal Pod Autoscaling (HPA)
+
+### The Whole HPA Journey
+
+1. Horizontal Pod Autoscaler relies on metrics provided by the `Metrics Server`.<br>Make sure Metrics Server is installed and running in your cluster:
+
+```
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
+
+2. Update `deployment.yaml` file to include `resource requests and limits for CPU`. This is necessary for HPA to work with CPU metrics.:
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demonetkubernetes-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demonetkubernetes
+  template:
+    metadata:
+      labels:
+        app: demonetkubernetes
+    spec:
+      containers:
+      - name: demonetkubernetes
+        image: petartotev/demonetkubernetes:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"
+          limits:
+            cpu: "500m"
+```
+
+Reapply the `deployment.yaml` configuration:
+
+```
+kubectl apply -f deployment.yaml
+```
+
+3. Create `hpa.yaml` file with the following content:
+```
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: demonetkubernetes-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: demonetkubernetes-deployment
+  minReplicas: 1  # Minimum number of pods
+  maxReplicas: 5  # Maximum number of pods
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 50  # Adjust as needed based on your workload
+```
+
+Apply the `hpa.yaml` configuration:
+
+```
+kubectl apply -f hpa.yaml
+```
+
+⚠️ WARNING: Failed to create resource!
+
+<font color="red">Error from server (NotFound): error when creating "hpa.yaml": the server could not find the requested resource</font>
+
+In order to fix this, update the `hpa.yaml` file as it follows:
+```
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: demonetkubernetes-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: demonetkubernetes-deployment
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 50
+```
+
+Reapply the `hpa.yaml` configuration:
+
+```
+kubectl apply -f hpa.yaml
+```
+✅ SUCCESS: The expected output should be:
+
+<font color="cyan">horizontalpodautoscaler.autoscaling/demonetkubernetes-hpa created</font>
+
+4. Check the status of your HPA:
+
+```
+kubectl get hpa
+```
+The following output appears:
+```
+NAME                    REFERENCE                                 TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+demonetkubernetes-hpa   Deployment/demonetkubernetes-deployment   <unknown>/50%   1         5         2          4m20s
+```
+
+⚠️ WARNING: TARGETS value `<unknown>/50%` is unexpected. The current CPU usage taken by `metrics-server` should have allegedly appeared there.<br>Seems like the `metrics-server` doesn't respond.
+
+5. List all the kube-systems:
+
+```
+C:\Projects\PT_Demo_NET_Kubernetes\k8s>kubectl get pods -n kube-system
+
+NAME                                     READY   STATUS    RESTARTS   AGE
+coredns-5dd5756b68-dd7kj                 1/1     Running   0          39m
+coredns-5dd5756b68-fvr6q                 1/1     Running   0          39m
+etcd-docker-desktop                      1/1     Running   0          39m
+kube-apiserver-docker-desktop            1/1     Running   0          39m
+kube-controller-manager-docker-desktop   1/1     Running   0          39m
+kube-proxy-9g5pr                         1/1     Running   0          39m
+kube-scheduler-docker-desktop            1/1     Running   0          39m
+metrics-server-fbb469ccc-w8s7x           0/1     Running   0          22m
+storage-provisioner                      1/1     Running   0          39m
+vpnkit-controller                        1/1     Running   0          39m
+```
+
+6. Check the logs of the `metrics-server`:
+```
+kubectl logs -n kube-system metrics-server-fbb469ccc-w8s7x
+```
+
+⚠️ WARNING: The following issue occurs repetitively in logs:
+
+<font color="red">I1212 22:22:11.887952       1 server.go:187] "Failed probe" probe="metric-storage-ready" err="no metrics to serve"
+
+E1212 22:22:17.501977       1 scraper.go:140] "Failed to scrape node" err="Get \"https://192.168.65.3:10250/metrics/resource\": x509: cannot validate certificate for 192.168.65.3 because it doesn't contain any IP SANs" node="docker-desktop"</font>
+
+💡 Check the following [github discussion](https://github.com/kubernetes-sigs/metrics-server/issues/1025):
+
+<font color="cyan">Default metrics server configuration requires proper certificate configuration as documented in https://github.com/kubernetes-sigs/metrics-server#requirements.</font>
+
+7. Delete the ```metrics-server```:
+
+```
+kubectl delete pod -n kube-system <metrics-server-pod-name>
+```
+
+8. Download the `components.yaml` file from step 1 and place in the `/k8s` directory.
+<br>Add `--kubelet-insecure-tls` arg in the Deployment section as follows:
+
+```
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+...
+spec:
+  ...
+  template:
+    metadata:
+      ...
+    spec:
+      containers:
+      - args:
+        ...
+        - --kubelet-insecure-tls
+```
+Apply:
+```
+C:\Projects\PT_Demo_NET_Kubernetes\k8s>kubectl apply -f components.yaml
+
+serviceaccount/metrics-server unchanged
+clusterrole.rbac.authorization.k8s.io/system:aggregated-metrics-reader unchanged
+clusterrole.rbac.authorization.k8s.io/system:metrics-server unchanged
+rolebinding.rbac.authorization.k8s.io/metrics-server-auth-reader unchanged
+clusterrolebinding.rbac.authorization.k8s.io/metrics-server:system:auth-delegator unchanged
+clusterrolebinding.rbac.authorization.k8s.io/system:metrics-server unchanged
+service/metrics-server unchanged
+deployment.apps/metrics-server configured
+apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io unchanged
+```
+
+9. Check logs of server-metrics => ✅:
+
+```
+kubectl logs -n kube-system metrics-server-85cbcbdd74-zcg5j
+
+I1212 22:56:31.842909       1 serving.go:342] Generated self-signed cert (/tmp/apiserver.crt, /tmp/apiserver.key)
+I1212 22:56:32.145685       1 requestheader_controller.go:169] Starting RequestHeaderAuthRequestController
+I1212 22:56:32.145716       1 dynamic_serving_content.go:131] "Starting controller" name="serving-cert::/tmp/apiserver.crt::/tmp/apiserver.key"
+I1212 22:56:32.145728       1 shared_informer.go:240] Waiting for caches to sync for RequestHeaderAuthRequestController
+I1212 22:56:32.145769       1 configmap_cafile_content.go:201] "Starting controller" name="client-ca::kube-system::extension-apiserver-authentication::client-ca-file"
+I1212 22:56:32.145784       1 shared_informer.go:240] Waiting for caches to sync for client-ca::kube-system::extension-apiserver-authentication::client-ca-file
+I1212 22:56:32.145772       1 configmap_cafile_content.go:201] "Starting controller" name="client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file"
+I1212 22:56:32.145799       1 shared_informer.go:240] Waiting for caches to sync for client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file
+I1212 22:56:32.145690       1 secure_serving.go:267] Serving securely on [::]:4443
+W1212 22:56:32.145910       1 shared_informer.go:372] The sharedIndexInformer has started, run more than once is not allowed
+I1212 22:56:32.145705       1 tlsconfig.go:240] "Starting DynamicServingCertificateController"
+I1212 22:56:32.246369       1 shared_informer.go:247] Caches are synced for RequestHeaderAuthRequestController
+I1212 22:56:32.246457       1 shared_informer.go:247] Caches are synced for client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file
+I1212 22:56:32.246466       1 shared_informer.go:247] Caches are synced for client-ca::kube-system::extension-apiserver-authentication::client-ca-file
+```
+
+10. Check hpa => ✅:
+
+```
+kubectl get hpa
+
+NAME                    REFERENCE                                 TARGETS   MINPODS   MAXPODS   REPLICAS   AGE
+demonetkubernetes-hpa   Deployment/demonetkubernetes-deployment   1%/50%    1         5         1          14m
+```
+
+✅ SUCCESS: Note that TARGETS is not `<unknown>/50%` anymore - it has a value of `1%/50%`.
+
+11. Test
+
+Currently, there is only 1 pod due to the functioning HPA:
+
+![hpa-success-1.png](./res/hpa-success-1.png)
+
+Push the CPU by calling one of the following endpoints:
+```
+http://localhost:31129/cpu/doload/100000000
+http://localhost:31129/cpu/doload/2147483646
+```
+
+Now, the HPA increased the number of pods to 5:
+
+![hpa-success-2.png](./res/hpa-success-2.png)
+
+~ HAPPY END ~
+
+### TLDR
+
+1. Horizontal Pod Autoscaler relies on metrics provided by the `Metrics Server`.<br>Download [components.yaml from here](https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml) locally in /k8s directory and edit the content to include `- --kubelet-insecure-tls` arg for Deployments.
+
+Apply components.yaml configuration:
+
+```
+kubectl apply -f components.yaml
+```
+
+2. Update `deployment.yaml` file to include `resource requests and limits for CPU`. This is necessary for HPA to work with CPU metrics.:
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demonetkubernetes-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demonetkubernetes
+  template:
+    metadata:
+      labels:
+        app: demonetkubernetes
+    spec:
+      containers:
+      - name: demonetkubernetes
+        image: petartotev/demonetkubernetes:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"
+          limits:
+            cpu: "500m"
+```
+
+Reapply the `deployment.yaml` configuration:
+
+```
+kubectl apply -f deployment.yaml
+```
+
+3. Create `hpa.yaml` file with the following content:
+```
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: demonetkubernetes-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: demonetkubernetes-deployment
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 50
+```
+
+Apply the `hpa.yaml` configuration:
+
+```
+kubectl apply -f hpa.yaml
+```
+
+
+4. Check the status of your HPA:
+
+```
+kubectl get hpa
+```
+Output:
+```
+NAME                    REFERENCE                                 TARGETS   MINPODS   MAXPODS   REPLICAS   AGE
+demonetkubernetes-hpa   Deployment/demonetkubernetes-deployment   1%/50%    1         5         1          14m
+```
+
+✅ SUCCESS: Note that TARGETS is not `<unknown>/50%` anymore - it has a value of `1%/50%`.
+
+5. List all the kube-systems:
+
+```
+C:\Projects\PT_Demo_NET_Kubernetes\k8s>kubectl get pods -n kube-system
+```
+
+Output:
+```
+NAME                                     READY   STATUS    RESTARTS   AGE
+coredns-5dd5756b68-dd7kj                 1/1     Running   0          39m
+coredns-5dd5756b68-fvr6q                 1/1     Running   0          39m
+etcd-docker-desktop                      1/1     Running   0          39m
+kube-apiserver-docker-desktop            1/1     Running   0          39m
+kube-controller-manager-docker-desktop   1/1     Running   0          39m
+kube-proxy-9g5pr                         1/1     Running   0          39m
+kube-scheduler-docker-desktop            1/1     Running   0          39m
+metrics-server-fbb469ccc-w8s7x           1/1     Running   0          22m
+storage-provisioner                      1/1     Running   0          39m
+vpnkit-controller                        1/1     Running   0          39m
+```
+
+6. Check the logs of the `metrics-server` => ✅:
+```
+kubectl logs -n kube-system metrics-server-85cbcbdd74-zcg5j
+```
+
+Output:
+```
+I1212 22:56:31.842909       1 serving.go:342] Generated self-signed cert (/tmp/apiserver.crt, /tmp/apiserver.key)
+I1212 22:56:32.145685       1 requestheader_controller.go:169] Starting RequestHeaderAuthRequestController
+I1212 22:56:32.145716       1 dynamic_serving_content.go:131] "Starting controller" name="serving-cert::/tmp/apiserver.crt::/tmp/apiserver.key"
+I1212 22:56:32.145728       1 shared_informer.go:240] Waiting for caches to sync for RequestHeaderAuthRequestController
+I1212 22:56:32.145769       1 configmap_cafile_content.go:201] "Starting controller" name="client-ca::kube-system::extension-apiserver-authentication::client-ca-file"
+I1212 22:56:32.145784       1 shared_informer.go:240] Waiting for caches to sync for client-ca::kube-system::extension-apiserver-authentication::client-ca-file
+I1212 22:56:32.145772       1 configmap_cafile_content.go:201] "Starting controller" name="client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file"
+I1212 22:56:32.145799       1 shared_informer.go:240] Waiting for caches to sync for client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file
+I1212 22:56:32.145690       1 secure_serving.go:267] Serving securely on [::]:4443
+W1212 22:56:32.145910       1 shared_informer.go:372] The sharedIndexInformer has started, run more than once is not allowed
+I1212 22:56:32.145705       1 tlsconfig.go:240] "Starting DynamicServingCertificateController"
+I1212 22:56:32.246369       1 shared_informer.go:247] Caches are synced for RequestHeaderAuthRequestController
+I1212 22:56:32.246457       1 shared_informer.go:247] Caches are synced for client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file
+I1212 22:56:32.246466       1 shared_informer.go:247] Caches are synced for client-ca::kube-system::extension-apiserver-authentication::client-ca-file
+```
+
+11. Test
+
+Currently, there is only 1 pod due to the functioning HPA:
+
+![hpa-success-1.png](./res/hpa-success-1.png)
+
+Push the CPU by calling one of the following endpoints:
+```
+http://localhost:31129/cpu/doload/100000000
+http://localhost:31129/cpu/doload/2147483646
+```
+
+Now, the HPA increased the number of pods to 5:
+
+![hpa-success-2.png](./res/hpa-success-2.png)
+
+~ HAPPY END ~
 
 ## Teardown
 
@@ -161,3 +539,4 @@ kubectl delete deployments,services --all
 
 ## Links
 - https://forums.docker.com/t/unable-to-install-kubernetes-stuck-on-starting-state/117048
+- https://github.com/kubernetes-sigs/metrics-server/issues/1025

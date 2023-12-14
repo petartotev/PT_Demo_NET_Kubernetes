@@ -1,0 +1,9 @@
+# helm-chart/templates/configmaps.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-configmap
+data:
+  app-config: |
+    exampleKey: exampleValue

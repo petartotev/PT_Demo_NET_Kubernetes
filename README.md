@@ -3,13 +3,15 @@
 ## Contents
 
 - [Prerequisites](#prerequisites)
-- [Setup](#setup)
-- [Add Horizontal Pod Autoscaling](#add-horizontal-pod-autoscaling-hpa)
+- Non-Helm Chart
+  - [Setup](#setup)
+  - [Add Horizontal Pod Autoscaling](#add-horizontal-pod-autoscaling-hpa)
 - Helm Chart
   - [Using Helm Chart with HPA (CPU)](#using-helm-chart-with-hpa-cpu)
   - [Expand Helm Chart with HPA (CPU + Memory)](#expand-helm-chart-with-hpa-cpu--memory)
   - [Change Default Downscale Duration](#change-default-downscale-duration)
   - [Hardcode NodePort Port](#hardcode-nodeport-port)
+  - [Secrets and ConfigMaps](#secrets-and-configmaps)
 - [Teardown](#teardown)
 - [Commands](#commands)
 - [Terms](#terms)
@@ -139,12 +141,14 @@ NAME                        TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)    
 demonetkubernetes-service   NodePort   10.102.113.24   <none>        80:31129/TCP   2m
 ```
 
-9. Finally, get the external port from PORT(S) and access the application using the following URL:
+9. Finally, get the external port** from PORT(S) and access the application using the following URL:
 ```
 http://localhost:31129/cpu/doload/{number-of-operations}
 ```
 
 ![happy-end](./res/scrot_demo_01.png)
+
+** If you don't want for the external port to be a random number and you want to hardcode it, please check [this section](#hardcode-nodeport-port) of the documentation.
 
 ## Add Horizontal Pod Autoscaling (HPA)
 
@@ -735,6 +739,130 @@ helm upgrade demo-release ./helm-demo
 
 4. Test
 
+## Secrets and ConfigMaps
+
+1. Create a `Secret` to store sensitive information, such as database credentials in a new `secrets.yaml` file in the `/templates` directory:
+
+```
+# helm-chart/templates/secrets.yaml
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-secret
+type: Opaque
+data:
+  database-password: BASE64_ENCODED_PASSWORD
+```
+
+2. Create a `ConfigMap` to store configuration data that the application may need in a new `configmaps.yaml` file in the `/templates` directory:
+
+```
+# helm-chart/templates/configmaps.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-configmap
+data:
+  app-config: |
+    exampleKey: exampleValue
+```
+
+3. Update `deployments.yaml`:
+
+```
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret
+                  key: database-password
+            - name: APP_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: app-config
+```
+
+4. Introduce new [GET] endpoint in the .NET application in order to "print" the values set in `secrets.yaml` and `configmaps.yaml`.
+<br>You can later call the endpoint at:
+
+```
+http://localhost:30000/env/getenvvars
+```
+
+5. Build a new Image and push it to Docker Hub:
+
+```
+docker build -t petartotev/demonetkubernetes:latest .
+docker push petartotev/demonetkubernetes:latest
+```
+
+6. Uninstall the Helm Chart and install it from scratch:
+
+```
+helm uninstall demo-release
+helm install demo-release ./helm-chart
+```
+
+7. Make sure that the environment variables are set in the deployment environment. You can use the following command in a terminal to check if the environment variables are available:
+
+```
+kubectl get pods
+kubectl exec -it <pod-name> -- printenv
+```
+
+Output:
+```
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+HOSTNAME=demo-release-helm-68d7dff6f-kvds6
+TERM=xterm
+DATABASE_PASSWORD=this-is-my-super-secret-connection-string
+APP_CONFIG=exampleKey: exampleValue
+
+KUBERNETES_SERVICE_HOST=10.96.0.1
+KUBERNETES_SERVICE_PORT=443
+KUBERNETES_PORT_443_TCP=tcp://10.96.0.1:443
+DEMO_RELEASE_HELM_PORT_80_TCP=tcp://10.100.142.193:80
+DEMO_RELEASE_HELM_PORT_80_TCP_ADDR=10.100.142.193
+KUBERNETES_PORT=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP_PORT=443
+KUBERNETES_PORT_443_TCP_ADDR=10.96.0.1
+DEMO_RELEASE_HELM_PORT_80_TCP_PROTO=tcp
+DEMO_RELEASE_HELM_SERVICE_PORT=80
+KUBERNETES_SERVICE_PORT_HTTPS=443
+DEMO_RELEASE_HELM_SERVICE_HOST=10.100.142.193
+DEMO_RELEASE_HELM_PORT_80_TCP_PORT=80
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+DEMO_RELEASE_HELM_PORT=tcp://10.100.142.193:80
+ASPNETCORE_URLS=http://+:80
+DOTNET_RUNNING_IN_CONTAINER=true
+DOTNET_VERSION=6.0.25
+ASPNET_VERSION=6.0.25
+HOME=/root
+```
+
+8. You can also verify that your Helm values (from values.yaml) are being applied correctly. You can inspect the Helm release to see the applied values:
+
+```
+helm get values demo-release
+```
+
+Output:
+```
+USER-SUPPLIED VALUES:
+null
+```
+
+9. Test by calling the [GET] endpoint:
+
+```
+http://localhost:30000/env/getenvvars
+```
+
+![scrot-demo-03](./res/scrot_demo_03.png)
+
 ## Teardown
 
 You can do any of the following:
@@ -765,6 +893,8 @@ kubectl delete deployments,services --all
 ```kubectl describe hpa```  
 
 ```kubectl describe pod <pod-name>```  
+```kubectl exec -it <pod-name> -- printenv```
+
 ```kubectl describe deployment <deployment-name>```  
 
 ```kubectl get pods -n kube-system```  
@@ -775,9 +905,12 @@ kubectl delete deployments,services --all
 
 ### helm
 ```helm create helm-chart```  
+
 ```helm install demo-release ./helm-chart```  
 ```helm upgrade demo-release ./helm-demo```  
 ```helm uninstall demo-release```
+
+```helm get values demo-release```  
 
 ## Terms
 - [Helm](https://helm.sh/docs/) = the package manager for Kubernetes

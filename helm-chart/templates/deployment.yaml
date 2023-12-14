@@ -25,3 +25,14 @@ spec:
             requests:
               cpu: 100m
               memory: 128Mi
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret
+                  key: database-password
+            - name: APP_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: app-config

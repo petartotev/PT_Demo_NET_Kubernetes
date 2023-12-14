@@ -8,6 +8,8 @@
 - Helm Chart
   - [Using Helm Chart with HPA (CPU)](#using-helm-chart-with-hpa-cpu)
   - [Expand Helm Chart with HPA (CPU + Memory)](#expand-helm-chart-with-hpa-cpu--memory)
+  - [Change Default Downscale Duration](#change-default-downscale-duration)
+  - [Hardcode NodePort Port](#hardcode-nodeport-port)
 - [Teardown](#teardown)
 - [Commands](#commands)
 - [Terms](#terms)
@@ -639,6 +641,99 @@ Before, there was only 1 pod due to HPA (`minReplicas: 1`):
 Now, HPA increased the number of pods to 5 (`maxReplicas: 5`):
 
 ![hpa-memory-success--2.png](./res/hpa-memory-success-2.png)
+
+## Change Default Downscale Duration
+
+If not explicitly defined in .YAML-s, the default downscaleStabilizationDurationSeconds is set to 300 seconds.
+In order to change this default value, you need to introduce the following changes:
+
+1. Change `hpa.yaml`:
+
+```
+...
+  ...
+spec:
+  ...
+  targetCPUUtilizationPercentage: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+  targetMemoryUtilizationPercentage: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+  downscaleStabilizationDurationSeconds: {{ .Values.autoscaling.downscaleStabilizationDurationSeconds }} # if not explicitly defined, default is 300 seconds.
+```
+
+2. Change `values.yaml`:
+
+```
+# helm-demo/values.yaml
+
+replicaCount: 1
+
+image:
+  ...
+
+service:
+  ...
+
+autoscaling:
+  ...
+  targetCPUUtilizationPercentage: 50
+  targetMemoryUtilizationPercentage: 50
+  downscaleStabilizationDurationSeconds: 180
+```
+
+3. Upgrade Helm Chart:
+
+```
+helm upgrade demo-release ./helm-demo
+```
+
+4. Test
+
+## Hardcode NodePort Port
+
+Every time you upgrade the Helm Chart and restart it, a new random port will be assigned for the NodePort declared in `service.yaml`.
+
+In order to hardcode it, introduce the following changes:
+
+1. Change `service.yaml`:
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  ...
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      nodePort: {{ .Values.service.nodePort }}  # Specify the external port number here
+  ...
+```
+
+2. Change `values.yaml`:
+
+```
+replicaCount: 1
+
+image:
+  ...
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 80
+  nodePort: 30000 # Hardcode the nodePort value to 30000!
+
+autoscaling:
+  ...
+```
+
+3. Upgrade Helm Chart:
+
+```
+helm upgrade demo-release ./helm-demo
+```
+
+4. Test
 
 ## Teardown
 

@@ -11,6 +11,7 @@ service:
   type: NodePort
   port: 80
   targetPort: 80
+  nodePort: 30000
 
 autoscaling:
   enabled: true
@@ -18,3 +19,4 @@ autoscaling:
   maxReplicas: 5
   targetCPUUtilizationPercentage: 50
   targetMemoryUtilizationPercentage: 50
+  downscaleStabilizationDurationSeconds: 60

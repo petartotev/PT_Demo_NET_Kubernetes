@@ -15,3 +15,4 @@ spec:
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   targetCPUUtilizationPercentage: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
   targetMemoryUtilizationPercentage: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+  downscaleStabilizationDurationSeconds: {{ .Values.autoscaling.downscaleStabilizationDurationSeconds }} # if not explicitly defined, default is 300 seconds.

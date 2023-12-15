@@ -12,6 +12,7 @@
   - [Change Default Downscale Duration](#change-default-downscale-duration)
   - [Hardcode NodePort Port](#hardcode-nodeport-port)
   - [Secrets and ConfigMaps](#secrets-and-configmaps)
+  - [Grafana and Prometheus](#grafana-and-prometheus)
 - [Teardown](#teardown)
 - [Commands](#commands)
 - [Terms](#terms)
@@ -863,6 +864,214 @@ http://localhost:30000/env/getenvvars
 
 ![scrot-demo-03](./res/scrot_demo_03.png)
 
+## Grafana and Prometheus
+
+0. Reset Kubernetes Cluster
+
+1. Apply `metrics-server`:
+
+```
+kubectl apply -f ./k8s/components.yaml
+```
+
+Output:
+```
+serviceaccount/metrics-server created
+clusterrole.rbac.authorization.k8s.io/system:aggregated-metrics-reader created
+clusterrole.rbac.authorization.k8s.io/system:metrics-server created
+rolebinding.rbac.authorization.k8s.io/metrics-server-auth-reader created
+clusterrolebinding.rbac.authorization.k8s.io/metrics-server:system:auth-delegator created
+clusterrolebinding.rbac.authorization.k8s.io/system:metrics-server created
+service/metrics-server created
+deployment.apps/metrics-server created
+apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io created
+```
+
+2. Install Helm Chart:
+
+```
+helm install helm-demo ./helm-chart
+```
+
+Output:
+```
+W1215 21:39:19.187292   12408 warnings.go:70] unknown field "spec.downscaleStabilizationDurationSeconds"
+W1215 21:39:19.187798   12408 warnings.go:70] unknown field "spec.targetMemoryUtilizationPercentage"
+NAME: helm-demo
+LAST DEPLOYED: Fri Dec 15 21:39:18 2023
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+```
+
+3. Add prometheus and grafana repos:
+
+```
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+```
+
+Output:
+```
+"prometheus-community" has been added to your repositories
+"grafana" has been added to your repositories
+```
+
+4. Install prometheus:
+
+```
+helm install prometheus prometheus-community/prometheus
+```
+
+Output:
+```
+NAME: prometheus
+LAST DEPLOYED: Fri Dec 15 21:41:55 2023
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+The Prometheus server can be accessed via port 80 on the following DNS name from within your cluster:
+prometheus-server.default.svc.cluster.local
+
+Get the Prometheus server URL by running these commands in the same shell:
+  export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=prometheus,app.kubernetes.io/instance=prometheus" -o jsonpath="{.items[0].metadata.name}")
+  kubectl --namespace default port-forward $POD_NAME 9090
+
+The Prometheus alertmanager can be accessed via port 9093 on the following DNS name from within your cluster:
+prometheus-alertmanager.default.svc.cluster.local
+
+Get the Alertmanager URL by running these commands in the same shell:
+  export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=alertmanager,app.kubernetes.io/instance=prometheus" -o jsonpath="{.items[0].metadata.name}")
+  kubectl --namespace default port-forward $POD_NAME 9093
+#################################################################################
+######   WARNING: Pod Security Policy has been disabled by default since    #####
+######            it deprecated after k8s 1.25+. use                        #####
+######            (index .Values "prometheus-node-exporter" "rbac"          #####
+###### .          "pspEnabled") with (index .Values                         #####
+######            "prometheus-node-exporter" "rbac" "pspAnnotations")       #####
+######            in case you still need it.                                #####
+#################################################################################
+
+The Prometheus PushGateway can be accessed via port 9091 on the following DNS name from within your cluster:
+prometheus-prometheus-pushgateway.default.svc.cluster.local
+
+Get the PushGateway URL by running these commands in the same shell:
+  export POD_NAME=$(kubectl get pods --namespace default -l "app=prometheus-pushgateway,component=pushgateway" -o jsonpath="{.items[0].metadata.name}")
+  kubectl --namespace default port-forward $POD_NAME 9091
+
+For more information on running Prometheus, visit:
+https://prometheus.io/
+```
+
+5. Install grafana:
+
+```
+helm install grafana grafana/grafana
+```
+
+Output:
+```
+NAME: grafana
+LAST DEPLOYED: Fri Dec 15 21:43:30 2023
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+NOTES:
+1. Get your 'admin' user password by running:
+
+   kubectl get secret --namespace default grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+
+
+2. The Grafana server can be accessed via port 80 on the following DNS name from within your cluster:
+
+   grafana.default.svc.cluster.local
+
+   Get the Grafana URL to visit by running these commands in the same shell:
+     export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=grafana,app.kubernetes.io/instance=grafana" -o jsonpath="{.items[0].metadata.name}")
+     kubectl --namespace default port-forward $POD_NAME 3000
+
+3. Login with the password from step 1 and the username: admin
+#################################################################################
+######   WARNING: Persistence is disabled!!! You will lose your data when   #####
+######            the Grafana pod is terminated.                            #####
+#################################################################################
+```
+
+6. Expose grafana service:
+
+```
+kubectl expose service grafana --type=NodePort --target-port=3000 --name=grafana-nodeport
+```
+
+Output:
+```
+service/grafana-nodeport exposed
+```
+
+7. Get grafana pods:
+
+```
+kubectl get pods -l "app.kubernetes.io/name=grafana"
+```
+
+Output:
+```
+NAME                       READY   STATUS    RESTARTS   AGE
+grafana-674c48c8cd-rvdf9   1/1     Running   0          23m
+```
+
+8. Port forward on 3000:3000:
+
+```
+kubectl port-forward grafana-674c48c8cd-rvdf9 3000:3000
+```
+
+Output:
+```
+Forwarding from 127.0.0.1:3000 -> 3000
+Forwarding from [::1]:3000 -> 3000
+Handling connection for 3000
+Handling connection for 3000
+Handling connection for 3000
+...
+```
+
+9. Run the following command in PowerShell in order to retrieve the Grafana UI login password:
+
+```
+kubectl get secret --namespace default grafana -o jsonpath="{.data.admin-password}" | ForEach-Object { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($_)) }
+```
+
+Output:
+```
+123WsRPHe123eTUjLy123AMBXIFVkelHMdkZg123
+```
+
+10. Access Grafana on `http://localhost:3000/` and login:
+```
+Email or username: admin
+Password: 123WsRPHe123eTUjLy123AMBXIFVkelHMdkZg123
+```
+
+11. Add Prometheus as a data source:
+
+Navigate to "Settings" > "Data Sources" > "Add your first data source."
+<br>Choose Prometheus.
+<br>Set the URL to http://prometheus-server:80.
+
+12. Build a Dashboard:
+
+- Add a Visualization
+- Select Data Source: Prometheus
+- Kick start your query
+- Choose `kubelet_active_pods`
+- [Run queries] > [Apply]
+
+![prometheus-grafana-1](./res/prometheus-grafana-1.png)
+
 ## Teardown
 
 You can do any of the following:
@@ -908,9 +1117,23 @@ kubectl delete deployments,services --all
 
 ```helm install demo-release ./helm-chart```  
 ```helm upgrade demo-release ./helm-demo```  
-```helm uninstall demo-release```
+```helm uninstall demo-release```  
 
 ```helm get values demo-release```  
+
+```helm repo add prometheus-community https://prometheus-community.github.io/helm-charts```  
+```helm repo add grafana https://grafana.github.io/helm-charts```  
+
+```helm install prometheus prometheus-community/prometheus```  
+```helm install prometheus prometheus-community/prometheus -f ./helm-chart/values.yaml```  
+```helm install grafana grafana/grafana```  
+
+```helm repo update```  
+```helm repo list```  
+
+```helm repo remove prometheus-community```  
+```helm repo remove grafana```  
+
 
 ## Terms
 - [Helm](https://helm.sh/docs/) = the package manager for Kubernetes

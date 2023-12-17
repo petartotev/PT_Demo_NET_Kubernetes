@@ -1074,7 +1074,7 @@ Navigate to "Settings" > "Data Sources" > "Add your first data source."
 
 ## Teardown
 
-You can do any of the following:
+1. In order to reset the K8S cluster, you can do any of the following:
 - Go to Docker > Settings > Kubernetes > [Reset Kubernetes Cluster]
 
 ![reset-kubernetes-cluster](./res/scrot_demo_02.png)
@@ -1082,6 +1082,32 @@ You can do any of the following:
 - Try to remove the Kubernetes infrastructure manually by using the following command:
 ```
 kubectl delete deployments,services --all
+```
+
+2. In case you have `helm repos` added, you can list them:
+
+```
+helm repo list
+```
+
+Output:
+```
+NAME                    URL
+prometheus-community    https://prometheus-community.github.io/helm-charts
+grafana                 https://grafana.github.io/helm-charts
+```
+
+3. If any, you can delete them:
+
+```
+helm repo remove prometheus-community
+helm repo remove grafana
+```
+
+Output:
+```
+"prometheus-community" has been removed from your repositories
+"grafana" has been removed from your repositories
 ```
 
 ## Commands

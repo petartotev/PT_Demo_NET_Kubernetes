@@ -11,6 +11,7 @@
   - [Expand Helm Chart with HPA (CPU + Memory)](#expand-helm-chart-with-hpa-cpu--memory)
   - [Change Default Downscale Duration](#change-default-downscale-duration)
   - [Hardcode NodePort Port](#hardcode-nodeport-port)
+  - [Rolling Updates and Rollbacks](#rolling-updates-and-rollbacks)
   - [Secrets and ConfigMaps](#secrets-and-configmaps)
   - [Grafana and Prometheus](#grafana-and-prometheus)
 - [Teardown](#teardown)
@@ -20,11 +21,11 @@
 
 ## Prerequisites
 
-1. Install `Docker Desktop` from [here](https://www.docker.com/products/docker-desktop/).
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop).
 
 2. Enable `Kubernetes` in Docker Desktop:
 ```
-Docker Desktop > Settings > Kubernetes > [v] Enable Kubernetes
+Docker Desktop > Settings > Kubernetes > [✓] Enable Kubernetes
 ```
 
 3. Make sure you have `kubectl` CLI by using any of the following commands:
@@ -33,7 +34,7 @@ kubectl version
 kubectl --help
 ```
 
-4. Install `Helm` from [here](https://helm.sh/docs/intro/install/).
+4. Install [Helm](https://helm.sh/docs/intro/install).
 
 On Windows, open Power Shell `as Admin` and execute the following command:
 
@@ -53,7 +54,7 @@ helm --help
 
 2. Create a new .NET Web API project `DemoNetKubernetes` in the solution.
 
-3. Introduce CpuController and MemoryController having endpoints which process CPU / Memory intensive operations.
+3. Introduce `CpuController` and `MemoryController` having endpoints which process CPU / Memory intensive operations.
 
 4. Create `Dockerfile` in the DemoNetKubernetes.csproj directory:
 ```
@@ -79,7 +80,7 @@ COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "DemoNetKubernetes.dll"]
 ```
 
-5. Build `Docker Image` and push it in Docker Hub:
+5. Build `Docker Image` and push it to [Docker Hub](https://hub.docker.com/):
 
 ```
 docker build -t petartotev/demonetkubernetes:latest .
@@ -149,7 +150,8 @@ http://localhost:31129/cpu/doload/{number-of-operations}
 
 ![happy-end](./res/scrot_demo_01.png)
 
-** If you don't want for the external port to be a random number and you want to hardcode it, please check [this section](#hardcode-nodeport-port) of the documentation.
+** If you don't want for the external port to be a random number and you want to hardcode it, please check the [Hardcode NodePort Port
+ section](#hardcode-nodeport-port) of this docs.
 
 ## Add Horizontal Pod Autoscaling (HPA)
 
@@ -157,7 +159,7 @@ Horizontal Pod Autoscaling (HPA) in Kubernetes allows you to automatically adjus
 
 0. All steps from the [Setup section](#setup) need to be accomplished before proceeding with this section.
 
-1. Horizontal Pod Autoscaler relies on metrics provided by the `Metrics Server`.<br>Make sure Metrics Server is installed and running in your cluster:
+1. Horizontal Pod Autoscaler relies on metrics provided by the `Metrics Server`.<br>Make sure it is installed and running in your cluster:
 
 ```
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
@@ -481,6 +483,13 @@ REVISION: 1
 TEST SUITE: None
 ```
 
+Note that for every running Pod Helm runs an internal Pod along with it:
+```
+k8s_POD_demo-release-helm-...: This is a standard Kubernetes pod naming convention where demo-release-helm-... is the name of your pod.
+
+k8s_helm_demo-release-helm-...: The prefix "helm" indicates that this pod may be related to Helm's internal management. Helm often deploys pods with names containing the release name and a unique identifier.
+```
+
 6. Check the status of HPA:
 
 ```
@@ -739,6 +748,80 @@ helm upgrade demo-release ./helm-demo
 ```
 
 4. Test
+
+## Rolling Updates and Rollbacks
+
+1. Create version 1.0 of your Docker image:
+
+```
+docker build -t petartotev/demonetkubernetes:latest .
+docker tag petartotev/demonetkubernetes:latest petartotev/demonetkubernetes:v1.0
+docker push petartotev/demonetkubernetes:v1.0
+```
+
+2. Run `metrics server`:
+
+```
+kubectl apply -f ./k8s/components.yaml
+```
+
+3. Update `values.yaml` in order to use version `v1.0`:
+
+```
+image:
+  repository: petartotev/demonetkubernetes
+  tag: v1.0  # Replace with the desired tag
+```
+
+4. Helm install:
+
+```
+helm install demo-release ./helm-chart
+```
+
+5. Create version 1.1 of your Docker image:
+
+```
+docker build -t petartotev/demonetkubernetes:latest .
+docker tag petartotev/demonetkubernetes:latest petartotev/demonetkubernetes:v1.1
+docker push petartotev/demonetkubernetes:v1.1
+```
+
+6. Update `values.yaml` in order to use version `v1.1`:
+
+```
+image:
+  repository: petartotev/demonetkubernetes
+  tag: v1.1  # Replace with the desired tag
+```
+
+7. Helm upgrade:
+
+```
+helm upgrade demo-release ./helm-demo
+```
+
+8. Observe how `rolling update` is working in Docker Desktop...
+
+✅ SUCCESS
+
+9. In order to test Rollbacks, bring back version v1.0 in `values.yaml`:
+
+```
+image:
+  repository: petartotev/demonetkubernetes
+  tag: v1.0  # Replace with the desired tag
+```
+
+10. Helm upgrade once more:
+
+```
+helm upgrade demo-release ./helm-demo
+```
+
+11. Observe how `rollback` is working in Docker Desktop...
+
+✅ SUCCESS
 
 ## Secrets and ConfigMaps
 
@@ -1115,6 +1198,10 @@ Output:
 ### docker
 ```docker build -t user/projectname:latest .```  
 ```docker push user/projectname:latest```  
+
+```docker build -t petartotev/demonetkubernetes:latest .```  
+```docker tag petartotev/demonetkubernetes:latest petartotev/demonetkubernetes:v1.0```  
+```docker push petartotev/demonetkubernetes:v1.0```  
 
 ### kubectl
 ```kubectl apply -f deployment.yaml```

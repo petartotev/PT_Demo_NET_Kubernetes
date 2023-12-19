@@ -4,6 +4,7 @@ using StackExchange.Redis;
 
 namespace DemoNetKubernetes.Controllers;
 
+// https://redis.io/docs/connect/clients/dotnet/
 [ApiController]
 [Route("[controller]")]
 public class RedisController : ControllerBase

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Prometheus;
 
 namespace DemoNetKubernetes.Controllers;
 
@@ -18,6 +19,11 @@ public class MemoryController : ControllerBase
     public ObjectResult Get(int megabytes)
     {
         ConsumeMemory(megabytes);
+
+        var counter = Metrics.CreateCounter(
+            "memory_endpoint_requests_count",
+            "memory_endpoint_requests_count gets incremented on requests upon Memory endpoints.");
+        counter.Inc();
 
         return Ok("Memory intensive process completed!");
     }

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Prometheus;
 using System.Text;
 
 namespace DemoNetKubernetes.Controllers;
@@ -19,6 +20,11 @@ public class EnvController : ControllerBase
             .AppendLine($"DATABASE_PASSWORD: {base64EncodedPassword}")
             .AppendLine($"APP_CONFIG: {appConfig}")
             .ToString();
+
+        var counter = Metrics.CreateCounter(
+            "env_endpoint_requests_count",
+            "env_endpoint_requests_count gets incremented on requests upon ENV endpoints.");
+        counter.Inc();
 
         return Ok(responseMessage);
     }

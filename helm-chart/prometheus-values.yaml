@@ -1,0 +1,6 @@
+serverFiles:
+  prometheus.yml:
+    scrape_configs:
+      - job_name: 'dotnet-app'
+        static_configs:
+          - targets: ['http://helm-demo-helm:80'] # Replace with your .NET app service and port

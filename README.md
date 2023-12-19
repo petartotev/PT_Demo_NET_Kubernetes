@@ -13,7 +13,8 @@
   - [Hardcode NodePort Port](#hardcode-nodeport-port)
   - [Rolling Updates and Rollbacks](#rolling-updates-and-rollbacks)
   - [Secrets and ConfigMaps](#secrets-and-configmaps)
-  - [Grafana and Prometheus](#grafana-and-prometheus)
+  - [Grafana and Prometheus (Default Metrics)](#grafana-and-prometheus-default-metrics)
+  - [Grafana and Prometheus (Custom Metrics)](#grafana-and-prometheus-custom-metrics)
 - [Teardown](#teardown)
 - [Commands](#commands)
 - [Terms](#terms)
@@ -947,7 +948,7 @@ http://localhost:30000/env/getenvvars
 
 ![scrot-demo-03](./res/scrot_demo_03.png)
 
-## Grafana and Prometheus
+## Grafana and Prometheus (Default Metrics)
 
 0. Reset Kubernetes Cluster
 
@@ -978,10 +979,10 @@ helm install helm-demo ./helm-chart
 
 Output:
 ```
-W1215 21:39:19.187292   12408 warnings.go:70] unknown field "spec.downscaleStabilizationDurationSeconds"
-W1215 21:39:19.187798   12408 warnings.go:70] unknown field "spec.targetMemoryUtilizationPercentage"
+W1219 09:36:59.028935    6308 warnings.go:70] unknown field "spec.downscaleStabilizationDurationSeconds"
+W1219 09:36:59.029726    6308 warnings.go:70] unknown field "spec.targetMemoryUtilizationPercentage"
 NAME: helm-demo
-LAST DEPLOYED: Fri Dec 15 21:39:18 2023
+LAST DEPLOYED: Tue Dec 19 09:36:58 2023
 NAMESPACE: default
 STATUS: deployed
 REVISION: 1
@@ -1001,7 +1002,7 @@ Output:
 "grafana" has been added to your repositories
 ```
 
-4. Install prometheus:
+4. Install `prometheus`:
 
 ```
 helm install prometheus prometheus-community/prometheus
@@ -1049,7 +1050,33 @@ For more information on running Prometheus, visit:
 https://prometheus.io/
 ```
 
-5. Install grafana:
+5. (Optional) Get `prometheus-server` Pod ID:
+
+```
+kubectl get pods --all-namespaces
+```
+
+6. (Optional) Port-forward `prometheus-server`:
+
+```
+kubectl port-forward prometheus-server-6b68fbd54b-82c42 9090:9090
+```
+
+Output:
+
+```
+Forwarding from 127.0.0.1:9090 -> 9090
+Forwarding from [::1]:9090 -> 9090
+Handling connection for 9090
+Handling connection for 9090
+...
+```
+
+7. (Optional) Access Prometheus on [http://localhost:9090](http://localhost:9090) and check its `Targets` (Status > Targets):
+
+![prometheus-server-9090](./res/prometheus-server-9090.png)
+
+8. Install `grafana`:
 
 ```
 helm install grafana grafana/grafana
@@ -1083,7 +1110,7 @@ NOTES:
 #################################################################################
 ```
 
-6. Expose grafana service:
+9. Expose `grafana` service at port 3000:
 
 ```
 kubectl expose service grafana --type=NodePort --target-port=3000 --name=grafana-nodeport
@@ -1094,7 +1121,7 @@ Output:
 service/grafana-nodeport exposed
 ```
 
-7. Get grafana pods:
+10. Get grafana pods:
 
 ```
 kubectl get pods -l "app.kubernetes.io/name=grafana"
@@ -1106,7 +1133,7 @@ NAME                       READY   STATUS    RESTARTS   AGE
 grafana-674c48c8cd-rvdf9   1/1     Running   0          23m
 ```
 
-8. Port forward on 3000:3000:
+11. Port forward on 3000:3000:
 
 ```
 kubectl port-forward grafana-674c48c8cd-rvdf9 3000:3000
@@ -1118,11 +1145,10 @@ Forwarding from 127.0.0.1:3000 -> 3000
 Forwarding from [::1]:3000 -> 3000
 Handling connection for 3000
 Handling connection for 3000
-Handling connection for 3000
 ...
 ```
 
-9. Run the following command in PowerShell in order to retrieve the Grafana UI login password:
+12. Run the following command in PowerShell in order to retrieve the Grafana UI login password:
 
 ```
 kubectl get secret --namespace default grafana -o jsonpath="{.data.admin-password}" | ForEach-Object { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($_)) }
@@ -1133,19 +1159,19 @@ Output:
 123WsRPHe123eTUjLy123AMBXIFVkelHMdkZg123
 ```
 
-10. Access Grafana on `http://localhost:3000/` and login:
+13. Access Grafana on [http://localhost:3000/](http://localhost:3000/) and login:
 ```
 Email or username: admin
 Password: 123WsRPHe123eTUjLy123AMBXIFVkelHMdkZg123
 ```
 
-11. Add Prometheus as a data source:
+14. Add Prometheus as a data source:
 
 Navigate to "Settings" > "Data Sources" > "Add your first data source."
 <br>Choose Prometheus.
-<br>Set the URL to http://prometheus-server:80.
+<br>Set the URL to http://prometheus-server:80
 
-12. Build a Dashboard:
+15. Build a Dashboard:
 
 - Add a Visualization
 - Select Data Source: Prometheus
@@ -1154,6 +1180,74 @@ Navigate to "Settings" > "Data Sources" > "Add your first data source."
 - [Run queries] > [Apply]
 
 ![prometheus-grafana-1](./res/prometheus-grafana-1.png)
+
+## Grafana and Prometheus (Custom Metrics)
+
+0. Do all steps from the [Grafana and Prometheus ](#grafana-and-prometheus-default-metrics) section above!
+
+0. In the .NET Application, install `prometheus-net` and `prometheus-net.AspNetCore` NuGet packages.
+
+1. In `CpuController`, implement the following:
+
+```
+[HttpGet(Name = "DoLoadOnCpu")]
+[Route("doload/{number}")]
+public ObjectResult Get(int number)
+{
+    ...
+
+    var counter = Metrics.CreateCounter(
+        "cpu_endpoint_requests_count",
+        "cpu_endpoint_requests_count gets incremented on requests upon CPU endpoints.");
+    counter.Inc();
+
+    return Ok(...);
+}
+```
+
+3. (Optional) For the sake of sanity check, you can go to Prometheus > Status > Targets and check the Targets:
+
+![prometheus-targets-1](./res/prometheus-targets-1.png)
+
+4. Introduce new `prometheus-values.yaml` file in the parent Helm Chart directory (./helm-chart), where the `values.yaml` file is:
+
+```
+serverFiles:
+  prometheus.yml:
+    scrape_configs:
+      - job_name: 'dotnet-app'
+        static_configs:
+          - targets: ['dotnet-app-service:target-port'] # Replace with your .NET app service and port
+```
+
+5. Replace `dotnet-app` with a suitable name for a target in `prometheus-values.yaml` file.<br>
+Replace `dotnet-app-service:target-port` with the hostname of the Application Pods and the targetPort of the Service.
+
+⚠️ WARNING: The last step failed multiple times as I tried different combinations like `localhost:80`, `127.0.0.1:80`, `192.168.0.16:30000` (30000 is the nodePort) etc.
+
+✅ SUCCESS: The `targets` that finally worked was:
+
+```
+        static_configs:
+          - targets: ['http://helm-demo-helm:80'] 
+```
+
+6. Helm Upgrade Prometheus:
+
+```
+helm upgrade prometheus prometheus-community/prometheus -f ./helm-chart/prometheus-values.yaml
+```
+
+7. Check if the new Target was successfully added in Prometheus UI on `localhost:9090` (Status > Targets):
+
+![prometheus-targets-2](./res/prometheus-targets-2.png)
+
+💡⚠️ WARNING: Prometheus UI could show that you didn't get `dotnet-app` target as expected after `helm upgrade`.<br>
+What have helped, allegedly, is to change the `prometheus-values.yaml` file to contain an invalid value for targets, like `helm-demo-helm:30000`, then execute `helm upgrade`, then bring back the correct target `http://helm-demo-helm:80`, then `helm upgrade` again. 
+
+8. Go to Grafana UI and create new Visualization including the introduced metrics in the .NET Application (e.g. cpu_endpoint_requests_count):
+
+![grafana-cpu-1](./res/grafana-cpu-1.png)
 
 ## Teardown
 

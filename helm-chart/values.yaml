@@ -4,7 +4,7 @@ replicaCount: 1
 
 image:
   repository: petartotev/demonetkubernetes
-  tag: latest  # Replace with the desired tag
+  tag: v1.0  # Replace with the desired tag
   pullPolicy: IfNotPresent
 
 service:

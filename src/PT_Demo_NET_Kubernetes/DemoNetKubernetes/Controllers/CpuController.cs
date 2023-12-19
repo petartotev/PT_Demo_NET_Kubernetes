@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Prometheus;
 
 namespace DemoNetKubernetes.Controllers;
 
@@ -18,6 +19,11 @@ public class CpuController : ControllerBase
     public ObjectResult Get(int number)
     {
         CalculatePrimes(number);
+
+        var counter = Metrics.CreateCounter(
+            "cpu_endpoint_requests_count",
+            "cpu_endpoint_requests_count gets incremented on requests upon CPU endpoints.");
+        counter.Inc();
 
         return Ok("CPU intensive process completed!");
     }

@@ -1,3 +1,5 @@
+using Prometheus;
+
 namespace DemoNetKubernetes;
 
 public class Program
@@ -13,6 +15,8 @@ public class Program
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
 
+        builder.Services.UseHttpClientMetrics();
+
         var app = builder.Build();
 
         // Configure the HTTP request pipeline.
@@ -23,9 +27,15 @@ public class Program
 
         app.UseHttpsRedirection();
 
+        app.UseRouting();
+
         app.UseAuthorization();
 
-        app.MapControllers();
+        app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapMetrics(); // Exposes /metrics endpoint
+            endpoints.MapControllers();
+        });
 
         app.Run();
     }

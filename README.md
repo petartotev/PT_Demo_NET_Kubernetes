@@ -1,5 +1,7 @@
 # PT_Demo_NET_Kubernetes
 
+![cover](./res/cover.jpg)
+
 ## Contents
 
 - [Prerequisites](#prerequisites)

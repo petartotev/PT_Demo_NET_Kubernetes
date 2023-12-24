@@ -1450,17 +1450,11 @@ Output:
 Defaulted container "prometheus-server-configmap-reload" out of: prometheus-server-configmap-reload, prometheus-server
 
 level=info ts=2023-12-24T13:20:46.478606655Z caller=main.go:137 msg="Starting prometheus-config-reloader" version="(version=0.70.0, branch=refs/tags/v0.70.0, revision=c2c673f7123f3745a2a982b4a2bdc43a11f50fad)"
-
 level=info ts=2023-12-24T13:20:46.478693848Z caller=main.go:138 build_context="(go=go1.21.4, platform=linux/amd64, user=Action-Run-ID-7048794395, date=20231130-15:42:49, tags=unknown)"
-
 level=info ts=2023-12-24T13:20:46.528883809Z caller=reloader.go:246 msg="reloading via HTTP"
-
 level=info ts=2023-12-24T13:20:46.528966827Z caller=reloader.go:282 msg="started watching config file and directories for changes" cfg= out= dirs=/etc/config
-
 level=info ts=2023-12-24T13:23:45.676236016Z caller=reloader.go:424 msg="Reload triggered" cfg_in= cfg_out= watched_dirs=/etc/config
-
 level=error ts=2023-12-24T13:27:34.64827932Z caller=runutil.go:100 msg="function failed. Retrying in next tick" err="trigger reload: received non-200 response: 500 Internal Server Error; have you set `--web.enable-lifecycle` Prometheus flag?"
-
 level=info ts=2023-12-24T13:28:59.223015197Z caller=reloader.go:424 msg="Reload triggered" cfg_in= cfg_out= watched_dirs=/etc/config
 ```
 
@@ -1549,7 +1543,7 @@ serverFiles:
 
 ![reset-kubernetes-cluster](./res/scrot_demo_02.png)
 
-- Try to remove the Kubernetes infrastructure manually by using the following command:
+- Try to remove the Kubernetes infrastructure manually by using the following command (not recommended):
 ```
 kubectl delete deployments,services --all
 ```
@@ -1591,6 +1585,13 @@ Output:
 ```docker push petartotev/demonetkubernetes:v1.0```  
 
 ### kubectl
+```kubectl version```
+```
+Client Version: v1.28.2
+Kustomize Version: v5.0.4-0.20230601165947-6ce0bf390ce3
+Server Version: v1.28.2
+```
+
 ```kubectl apply -f deployment.yaml```
 
 ```kubectl apply -f service.yaml```  
@@ -1614,15 +1615,18 @@ Output:
 
 ```kubectl api-versions```
 ```
-admissionregistration.k8s.io/v1
 ...
 autoscaling/v1
 autoscaling/v2
 ...
-v1
 ```
 
 ### helm
+```helm version```
+```
+version.BuildInfo{Version:"v3.13.1", GitCommit:"3547a4b5bf5edb5478ce352e18858d8a552a4110", GitTreeState:"clean", GoVersion:"go1.20.8"}
+```
+
 ```helm create helm-chart```  
 
 ```helm install helm-demo ./helm-chart```  

@@ -7,16 +7,19 @@
 - [Prerequisites](#prerequisites)
 - Non-Helm Chart
   - [Setup](#setup)
-  - [Add Horizontal Pod Autoscaling](#add-horizontal-pod-autoscaling-hpa)
+  - [Add Horizontal Pod Autoscaling (HPA)](#add-horizontal-pod-autoscaling-hpa)
 - Helm Chart
-  - [Using Helm Chart with HPA (CPU)](#using-helm-chart-with-hpa-cpu)
-  - [Expand Helm Chart with HPA (CPU + Memory)](#expand-helm-chart-with-hpa-cpu--memory)
-  - [Change Default Downscale Duration](#change-default-downscale-duration)
+  - Horizontal Pod Autoscaling (HPA)
+    - [Using Helm Chart with HPA (CPU)](#using-helm-chart-with-hpa-cpu)
+    - [Expand Helm Chart with HPA (CPU + Memory)](#expand-helm-chart-with-hpa-cpu--memory)
+    - [Using Helm Chart with HPA (Custom Metrics)](#using-helm-chart-with-hpa-custom-metrics)
+    - [Change Default Downscale Duration](#change-default-downscale-duration)
   - [Hardcode NodePort Port](#hardcode-nodeport-port)
   - [Rolling Updates and Rollbacks](#rolling-updates-and-rollbacks)
   - [Secrets and ConfigMaps](#secrets-and-configmaps)
-  - [Grafana and Prometheus (Default Metrics)](#grafana-and-prometheus-default-metrics)
-  - [Grafana and Prometheus (Custom Metrics)](#grafana-and-prometheus-custom-metrics)
+  - Grafana and Prometheus
+    - [Grafana and Prometheus (Default Metrics)](#grafana-and-prometheus-default-metrics)
+    - [Grafana and Prometheus (Custom Metrics)](#grafana-and-prometheus-custom-metrics)
 - [Teardown](#teardown)
 - [Commands](#commands)
   - [docker](#docker)
@@ -42,7 +45,7 @@ kubectl --help
 
 4. Install [Helm](https://helm.sh/docs/intro/install).
 
-On Windows, open Power Shell `as Admin` and execute the following command:
+On Windows, run Power Shell `as Admin` and execute the following command:
 
 ```
 choco install kubernetes-helm
@@ -60,7 +63,8 @@ helm --help
 
 2. Create a new .NET Web API project `DemoNetKubernetes` in the solution.
 
-3. Introduce `CpuController` and `MemoryController` having endpoints which process CPU / Memory intensive operations.
+3. Implement `CpuController` and `MemoryController` with endpoints that process CPU / Memory intensive operations.<br>
+Implement `EnvController` with endpoint that returns a bunch of EnvironmentVariable-s. 
 
 4. Create `Dockerfile` in the DemoNetKubernetes.csproj directory:
 ```
@@ -139,7 +143,7 @@ kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
 ```
 
-8. Check the status of your service:
+7. Check the status of your service:
 ```
 kubectl get service demonetkubernetes-service
 ```
@@ -149,21 +153,20 @@ NAME                        TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)    
 demonetkubernetes-service   NodePort   10.102.113.24   <none>        80:31129/TCP   2m
 ```
 
-9. Finally, get the external port** from PORT(S) and access the application using the following URL:
+8. Finally, get the external port from PORT(S) and access the application using the following URL:
 ```
 http://localhost:31129/cpu/doload/{number-of-operations}
 ```
 
 ![happy-end](./res/scrot_demo_01.png)
 
-** If you don't want for the external port to be a random number and you want to hardcode it, please check the [Hardcode NodePort Port
- section](#hardcode-nodeport-port) of this docs.
+💡 SUGGESTION: If you don't want for the external PORT to be a random number and you want to have it hardcoded, please check the [Hardcode NodePort Port](#hardcode-nodeport-port) section.
 
 ## Add Horizontal Pod Autoscaling (HPA)
 
 Horizontal Pod Autoscaling (HPA) in Kubernetes allows you to automatically adjust the number of replica pods in a deployment based on observed CPU utilization or custom metrics.
 
-0. All steps from the [Setup section](#setup) need to be accomplished before proceeding with this section.
+0. All steps from the [Setup](#setup) section need to be accomplished before proceeding with this section.
 
 1. Horizontal Pod Autoscaler relies on metrics provided by the `Metrics Server`.<br>Make sure it is installed and running in your cluster:
 
@@ -173,7 +176,7 @@ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/late
 
 ⚠️ WARNING: This step will later fail. Check steps 4-10 to see the whole story! 
 
-2. Update existing `deployment.yaml` file created in the [Setup section](#setup) to include `resources, requests and limits for CPU`. This is necessary for HPA to work with CPU metrics:
+2. Update existing `deployment.yaml` file created in the [Setup](#setup) section to include `resources, requests and limits for CPU`. This is necessary for HPA to work with CPU metrics:
 
 ```
 apiVersion: apps/v1
@@ -238,7 +241,10 @@ kubectl apply -f hpa.yaml
 
 <font color="red">Error from server (NotFound): error when creating "hpa.yaml": the server could not find the requested resource</font>
 
-In order to fix this, update the `hpa.yaml` file as it follows:
+This is due to the fact that API Versions contains `autoscaling/v1` and `autoscaling/v2`, but not `autoscaling/v2beta1` or `autoscaling/v2beta2`.
+
+In order to fix this, update the `hpa.yaml` file to use `autoscaling/v1` API Version as follows:
+
 ```
 apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
@@ -310,7 +316,7 @@ kubectl logs -n kube-system metrics-server-fbb469ccc-w8s7x
 <font color="red">I1212 22:22:11.887952       1 server.go:187] "Failed probe" probe="metric-storage-ready" err="no metrics to serve".
 E1212 22:22:17.501977       1 scraper.go:140] "Failed to scrape node" err="Get \"https://192.168.65.3:10250/metrics/resource\": x509: cannot validate certificate for 192.168.65.3 because it doesn't contain any IP SANs" node="docker-desktop"</font>
 
-💡 Check the following [github discussion](https://github.com/kubernetes-sigs/metrics-server/issues/1025):
+💡 SUGGESTION: Check the following [github discussion](https://github.com/kubernetes-sigs/metrics-server/issues/1025):
 
 <font color="cyan">Default metrics server configuration requires proper certificate configuration as documented in https://github.com/kubernetes-sigs/metrics-server#requirements.</font>
 
@@ -396,7 +402,7 @@ NAME                    REFERENCE                                 TARGETS   MINP
 demonetkubernetes-hpa   Deployment/demonetkubernetes-deployment   1%/50%    1         5         1          14m
 ```
 
-✅ SUCCESS: TARGETS is not `<unknown>/50%` anymore - it has a value of `1%/50%`, taken from the metrics of the running pods.
+✅ SUCCESS: TARGETS is not `<unknown>/50%` anymore - it has a valid value of `1%/50%`, taken from the metrics of the running pods.
 
 11. Test
 
@@ -416,9 +422,9 @@ Now, HPA increased the number of pods to 5 (`maxReplicas: 5`):
 
 ## Using Helm Chart with HPA (CPU)
 
-0. Reset the Kubernetes Cluster by following the instructions in the [Teardown section](#teardown)
+0. Reset the Kubernetes Cluster by following the instructions in the [Teardown](#teardown) section.
 
-1. Apply `components.yaml` configuration created in the [HPA section](#add-horizontal-pod-autoscaling-hpa):
+1. Apply `components.yaml` configuration created in the [HPA](#add-horizontal-pod-autoscaling-hpa) section:
 
 ```
 kubectl apply -f ./k8s/components.yaml
@@ -617,7 +623,14 @@ autoscaling:
 3. Update `hpa.yaml`:
 
 ```
-...
+# helm-chart/templates/hpa.yaml
+
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -635,13 +648,28 @@ spec:
 helm upgrade demo-release ./helm-demo
 ```
 
+Output:
+```
+W1224 17:05:04.439415   10732 warnings.go:70] unknown field "spec.targetMemoryUtilizationPercentage"
+Release "helm-demo" has been upgraded. Happy Helming!
+NAME: helm-demo
+LAST DEPLOYED: Sun Dec 24 17:05:03 2023
+NAMESPACE: default
+STATUS: deployed
+REVISION: 9
+TEST SUITE: None
+```
+
+⚠️ WARNING: Output claims that `targetMemoryUtilizationPercentage` is unknown!<br>
+It is strongly recommended for the API Version to be updated from `autoscaling/v1` to `autoscaling/v2`.
+
 5. Check the status of HPA:
 
 ```
 kubectl get hpa
 ```
 
-6. Describe the HPA to see if there are any events that provide information about the HPA's decision-making process:
+6. Describe the HPA to see if there are any events providing information about the HPA's decision-making process:
 
 ```
 kubectl describe hpa <hpa-name>
@@ -662,6 +690,165 @@ Now, HPA increased the number of pods to 5 (`maxReplicas: 5`):
 
 ![hpa-memory-success--2.png](./res/hpa-memory-success-2.png)
 
+## Using Helm Chart with HPA (Custom Metrics)
+
+0. Make sure you did all steps described in [Prometheus and Grafana (Default Metrics)](#grafana-and-prometheus-default-metrics) and [Prometheus and Grafana (Custom Metrics)](#grafana-and-prometheus-custom-metrics) sections.
+
+1. Check the current API versions:
+
+```
+kubectl kubectl api-versions
+```
+
+Output:
+```
+admissionregistration.k8s.io/v1
+apiextensions.k8s.io/v1
+apiregistration.k8s.io/v1
+apps/v1
+authentication.k8s.io/v1
+authorization.k8s.io/v1
+autoscaling/v1
+autoscaling/v2
+batch/v1
+certificates.k8s.io/v1
+coordination.k8s.io/v1
+discovery.k8s.io/v1
+events.k8s.io/v1
+flowcontrol.apiserver.k8s.io/v1beta2
+flowcontrol.apiserver.k8s.io/v1beta3
+metrics.k8s.io/v1beta1
+networking.k8s.io/v1
+node.k8s.io/v1
+policy/v1
+rbac.authorization.k8s.io/v1
+scheduling.k8s.io/v1
+storage.k8s.io/v1
+v1
+```
+
+⚠️ WARNING: Custom Metrics seem to be unsupported using `apiVersion: autoscaling/v1`.<br>
+In addition, we don't have `autoscaling/v2beta1` and `autoscaling/v2beta2` in our API Versions, so these cannot be used either.<br>
+If you execute `helm install helm-demo ./helm-chart` using `hpa.yaml` refactored to use `autoscaling/v2beta2`, the following error occurs:
+
+Output:
+```
+Error: INSTALLATION FAILED: unable to build kubernetes objects from release manifest: resource mapping not found for name: "helm-demo-helm" namespace: "" from "": no matches for kind "HorizontalPodAutoscaler" in version "autoscaling/v2beta2"
+ensure CRDs are installed first
+```
+
+2. Update `hpa.yaml` in order to use `apiVersion: autoscaling/v2`:
+
+```
+# helm-chart/templates/hpa.yaml
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Release.Name }}-{{ .Chart.Name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+```
+
+3. Helm Install:
+
+```
+helm install helm-demo ./helm-chart
+```
+
+Output:
+```
+NAME: helm-demo
+LAST DEPLOYED: Sun Dec 24 18:02:57 2023
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+```
+
+✅ SUCCESS
+
+4. Update `hpa.yaml` in order to use custom metric `env_endpoint_requests_count`:
+
+```
+# helm-chart/templates/hpa.yaml
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Release.Name }}-{{ .Chart.Name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+  - type: Pods
+    pods:
+      metric:
+        name: env_endpoint_requests_count
+      target:
+        type: AverageValue
+        averageValue: 10  # Adjust this value according to your needs
+```
+
+5. Helm Upgrade:
+
+```
+helm upgrade helm-demo ./helm-chart
+```
+
+Output:
+```
+Release "helm-demo" has been upgraded. Happy Helming!
+NAME: helm-demo
+LAST DEPLOYED: Sun Dec 24 18:19:07 2023
+NAMESPACE: default
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+```
+
+6. Test by hitting the `http://localhost:30000/env/getenvvars` endpoint a dozen of times, then check if the Pods got autoscaled.
+
+✅ SUCCESS
+
 ## Change Default Downscale Duration
 
 If not explicitly defined in .YAML-s, the default downscaleStabilizationDurationSeconds is set to 300 seconds.
@@ -670,13 +857,44 @@ In order to change this default value, you need to introduce the following chang
 1. Change `hpa.yaml`:
 
 ```
-...
-  ...
+# helm-chart/templates/hpa.yaml
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
 spec:
-  ...
-  targetCPUUtilizationPercentage: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
-  targetMemoryUtilizationPercentage: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
-  downscaleStabilizationDurationSeconds: {{ .Values.autoscaling.downscaleStabilizationDurationSeconds }} # if not explicitly defined, default is 300 seconds.
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Release.Name }}-{{ .Chart.Name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+  - type: Pods
+    pods:
+      metric:
+        name: env_endpoint_requests_count
+      target:
+        type: AverageValue
+        averageValue: 10  # Adjust this value according to your needs
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.downscaleStabilizationDurationSeconds }} # if not explicitly defined, default is 300 seconds.
 ```
 
 2. Change `values.yaml`:
@@ -693,10 +911,12 @@ service:
   ...
 
 autoscaling:
-  ...
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 10
   targetCPUUtilizationPercentage: 50
   targetMemoryUtilizationPercentage: 50
-  downscaleStabilizationDurationSeconds: 180
+  downscaleStabilizationDurationSeconds: 60
 ```
 
 3. Upgrade Helm Chart:
@@ -706,6 +926,8 @@ helm upgrade demo-release ./helm-demo
 ```
 
 4. Test
+
+❓ It never occurred to me for the Pods to downscale in 60 seconds, they just downscaled when 5 minutes passed (the default value of 300 seconds) and yet I don't have any idea why.
 
 ## Hardcode NodePort Port
 
@@ -754,6 +976,8 @@ helm upgrade demo-release ./helm-demo
 ```
 
 4. Test
+
+✅ SUCCESS
 
 ## Rolling Updates and Rollbacks
 
@@ -955,7 +1179,7 @@ http://localhost:30000/env/getenvvars
 
 ## Grafana and Prometheus (Default Metrics)
 
-0. Reset Kubernetes Cluster by doing all the steps described in the [Teardown section](#teardown).
+0. Reset Kubernetes Cluster by doing all the steps described in the [Teardown](#teardown) section.
 
 1. Apply `metrics-server`:
 
@@ -976,7 +1200,7 @@ deployment.apps/metrics-server created
 apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io created
 ```
 
-2. Install Helm Chart:
+2. Install the `Helm Chart`:
 
 ```
 helm install helm-demo ./helm-chart
@@ -994,7 +1218,7 @@ REVISION: 1
 TEST SUITE: None
 ```
 
-3. Add prometheus and grafana repos:
+3. Add `prometheus` and `grafana` repos:
 
 ```
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -1188,7 +1412,7 @@ Password: 123WsRPHe123eTUjLy123AMBXIFVkelHMdkZg123
 
 ## Grafana and Prometheus (Custom Metrics)
 
-0. Do all steps from the [Grafana and Prometheus ](#grafana-and-prometheus-default-metrics) section above!
+0. Do all steps from the [Grafana and Prometheus (Default Metrics)](#grafana-and-prometheus-default-metrics) section above!
 
 1. In the .NET Application, install `prometheus-net` and `prometheus-net.AspNetCore` NuGet packages.
 
@@ -1214,12 +1438,40 @@ public ObjectResult Get(int number)
 
 ![prometheus-targets-1](./res/prometheus-targets-1.png)
 
-4. (Optional) Make a [POST] request using Postman - it should return `200 OK` with no response body:
+4. (Don't do if all goes fine) Check the logs of the `prometheus-server`:
+
+```
+kubectl get pods
+kubectl logs prometheus-server-6b68fbd54b-7pv7h
+```
+
+Output:
+```
+Defaulted container "prometheus-server-configmap-reload" out of: prometheus-server-configmap-reload, prometheus-server
+
+level=info ts=2023-12-24T13:20:46.478606655Z caller=main.go:137 msg="Starting prometheus-config-reloader" version="(version=0.70.0, branch=refs/tags/v0.70.0, revision=c2c673f7123f3745a2a982b4a2bdc43a11f50fad)"
+
+level=info ts=2023-12-24T13:20:46.478693848Z caller=main.go:138 build_context="(go=go1.21.4, platform=linux/amd64, user=Action-Run-ID-7048794395, date=20231130-15:42:49, tags=unknown)"
+
+level=info ts=2023-12-24T13:20:46.528883809Z caller=reloader.go:246 msg="reloading via HTTP"
+
+level=info ts=2023-12-24T13:20:46.528966827Z caller=reloader.go:282 msg="started watching config file and directories for changes" cfg= out= dirs=/etc/config
+
+level=info ts=2023-12-24T13:23:45.676236016Z caller=reloader.go:424 msg="Reload triggered" cfg_in= cfg_out= watched_dirs=/etc/config
+
+level=error ts=2023-12-24T13:27:34.64827932Z caller=runutil.go:100 msg="function failed. Retrying in next tick" err="trigger reload: received non-200 response: 500 Internal Server Error; have you set `--web.enable-lifecycle` Prometheus flag?"
+
+level=info ts=2023-12-24T13:28:59.223015197Z caller=reloader.go:424 msg="Reload triggered" cfg_in= cfg_out= watched_dirs=/etc/config
+```
+
+💡 SUGGESTION: Read more about `--web.enable-lifecycle`.
+
+5. (Optional) Make a [POST] request using Postman - it should return `200 OK` with no response body:
 ```
 [POST] http://localhost:9090/-/reload
 ```
 
-5. Introduce new `prometheus-values.yaml` file in the parent Helm Chart directory (./helm-chart), where the `values.yaml` file is:
+6. Introduce new `prometheus-values.yaml` file in the parent Helm Chart directory (./helm-chart), where the `values.yaml` file is:
 
 ```
 serverFiles:
@@ -1230,19 +1482,19 @@ serverFiles:
           - targets: ['helm-demo-helm:80'] # dotnet-app-pod-name:target-port
 ```
 
-6. Helm Upgrade Prometheus:
+7. Helm Upgrade Prometheus:
 
 ```
 helm upgrade prometheus prometheus-community/prometheus -f ./helm-chart/prometheus-values.yaml
 ```
 
-7. Check if the new Target was successfully added in Prometheus UI on `localhost:9090` (Status > Targets):
+8. Check if the new Target was successfully added in Prometheus UI on `localhost:9090` (Status > Targets):
 
 ![prometheus-targets-2](./res/prometheus-targets-2.png)
 
-⚠️💡 WARNING: Prometheus UI could show that you didn't get the `dotnet-app` Target as expected after executing `helm upgrade`.
+⚠️ WARNING: Prometheus UI could show that you didn't get the `dotnet-app` Target as expected after executing `helm upgrade`.
 
-If so, try the following steps:
+💡 SUGGESTION: Try the following steps:
 
 - Make a request using Postman: ```[POST] http://localhost:9090/-/reload```. <br>This would allegedly return `200 OK` with no response body.
 
@@ -1286,7 +1538,7 @@ serverFiles:
 
 ✅ SUCCESS
 
-8. Go to Grafana UI and create new Visualization including the introduced metrics in the .NET Application (e.g. cpu_endpoint_requests_count):
+9. Go to Grafana UI and create new Visualization including the custom metrics in the .NET Application (e.g. cpu_endpoint_requests_count):
 
 ![grafana-cpu-1](./res/grafana-cpu-1.png)
 
@@ -1360,14 +1612,26 @@ Output:
 
 ```kubectl delete deployments,services --all```  
 
+```kubectl api-versions```
+```
+admissionregistration.k8s.io/v1
+...
+autoscaling/v1
+autoscaling/v2
+...
+v1
+```
+
 ### helm
 ```helm create helm-chart```  
 
-```helm install demo-release ./helm-chart```  
-```helm upgrade demo-release ./helm-demo```  
-```helm uninstall demo-release```  
+```helm install helm-demo ./helm-chart```  
+```helm upgrade helm-demo ./helm-chart```  
+```helm uninstall helm-demo```  
 
-```helm get values demo-release```  
+```helm list```
+
+```helm get values helm-demo```  
 
 ```helm repo add prometheus-community https://prometheus-community.github.io/helm-charts```  
 ```helm repo add grafana https://grafana.github.io/helm-charts```  
@@ -1381,7 +1645,6 @@ Output:
 
 ```helm repo remove prometheus-community```  
 ```helm repo remove grafana```  
-
 
 ## Terms
 - [Helm](https://helm.sh/docs/) = the package manager for Kubernetes

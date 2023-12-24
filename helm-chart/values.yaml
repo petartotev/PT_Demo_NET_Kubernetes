@@ -16,7 +16,7 @@ service:
 autoscaling:
   enabled: true
   minReplicas: 1
-  maxReplicas: 5
+  maxReplicas: 10
   targetCPUUtilizationPercentage: 50
   targetMemoryUtilizationPercentage: 50
   downscaleStabilizationDurationSeconds: 60

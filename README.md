@@ -17,6 +17,9 @@
   - [Grafana and Prometheus (Custom Metrics)](#grafana-and-prometheus-custom-metrics)
 - [Teardown](#teardown)
 - [Commands](#commands)
+  - [docker](#docker)
+  - [kubectl](#kubectl)
+  - [helm](#helm)
 - [Terms](#terms)
 - [Links](#links)
 
@@ -950,7 +953,7 @@ http://localhost:30000/env/getenvvars
 
 ## Grafana and Prometheus (Default Metrics)
 
-0. Reset Kubernetes Cluster
+0. Reset Kubernetes Cluster by doing all the steps described in the [Teardown section](#teardown).
 
 1. Apply `metrics-server`:
 
@@ -1167,9 +1170,9 @@ Password: 123WsRPHe123eTUjLy123AMBXIFVkelHMdkZg123
 
 14. Add Prometheus as a data source:
 
-Navigate to "Settings" > "Data Sources" > "Add your first data source."
-<br>Choose Prometheus.
-<br>Set the URL to http://prometheus-server:80
+- Navigate to "Settings" > "Connections" > "Data Sources" > "Add your first data source."
+- Choose Prometheus.
+- Set the URL to http://prometheus-server:80
 
 15. Build a Dashboard:
 
@@ -1185,9 +1188,9 @@ Navigate to "Settings" > "Data Sources" > "Add your first data source."
 
 0. Do all steps from the [Grafana and Prometheus ](#grafana-and-prometheus-default-metrics) section above!
 
-0. In the .NET Application, install `prometheus-net` and `prometheus-net.AspNetCore` NuGet packages.
+1. In the .NET Application, install `prometheus-net` and `prometheus-net.AspNetCore` NuGet packages.
 
-1. In `CpuController`, implement the following:
+2. In `CpuController`, implement the following:
 
 ```
 [HttpGet(Name = "DoLoadOnCpu")]
@@ -1209,27 +1212,20 @@ public ObjectResult Get(int number)
 
 ![prometheus-targets-1](./res/prometheus-targets-1.png)
 
-4. Introduce new `prometheus-values.yaml` file in the parent Helm Chart directory (./helm-chart), where the `values.yaml` file is:
+4. (Optional) Make a [POST] request using Postman - it should return `200 OK` with no response body:
+```
+[POST] http://localhost:9090/-/reload
+```
+
+5. Introduce new `prometheus-values.yaml` file in the parent Helm Chart directory (./helm-chart), where the `values.yaml` file is:
 
 ```
 serverFiles:
   prometheus.yml:
     scrape_configs:
-      - job_name: 'dotnet-app'
+      - job_name: 'dotnet-app' # target-name-used-by-prometheus
         static_configs:
-          - targets: ['dotnet-app-service:target-port'] # Replace with your .NET app service and port
-```
-
-5. Replace `dotnet-app` with a suitable name for a target in `prometheus-values.yaml` file.<br>
-Replace `dotnet-app-service:target-port` with the hostname of the Application Pods and the targetPort of the Service.
-
-⚠️ WARNING: The last step failed multiple times as I tried different combinations like `localhost:80`, `127.0.0.1:80`, `192.168.0.16:30000` (30000 is the nodePort) etc.
-
-✅ SUCCESS: The `targets` that finally worked was:
-
-```
-        static_configs:
-          - targets: ['http://helm-demo-helm:80'] 
+          - targets: ['helm-demo-helm:80'] # dotnet-app-pod-name:target-port
 ```
 
 6. Helm Upgrade Prometheus:
@@ -1242,8 +1238,51 @@ helm upgrade prometheus prometheus-community/prometheus -f ./helm-chart/promethe
 
 ![prometheus-targets-2](./res/prometheus-targets-2.png)
 
-💡⚠️ WARNING: Prometheus UI could show that you didn't get `dotnet-app` target as expected after `helm upgrade`.<br>
-What have helped, allegedly, is to change the `prometheus-values.yaml` file to contain an invalid value for targets, like `helm-demo-helm:30000`, then execute `helm upgrade`, then bring back the correct target `http://helm-demo-helm:80`, then `helm upgrade` again. 
+⚠️💡 WARNING: Prometheus UI could show that you didn't get the `dotnet-app` Target as expected after executing `helm upgrade`.
+
+If so, try the following steps:
+
+- Make a request using Postman: ```[POST] http://localhost:9090/-/reload```. <br>This would allegedly return `200 OK` with no response body.
+
+- Update the `prometheus-values.yaml` file by adding `http://` in the targets:
+
+```
+serverFiles:
+  prometheus.yml:
+    scrape_configs:
+      - job_name: 'dotnet-app' # target-name-used-by-prometheus
+        static_configs:
+          - targets: ['http://helm-demo-helm:80'] # dotnet-app-pod-name:target-port
+```
+
+- Execute `helm upgrade` again:
+
+```
+helm upgrade prometheus prometheus-community/prometheus -f ./helm-chart/prometheus-values.yaml
+```
+
+- Make a request using Postman: ```[POST] http://localhost:9090/-/reload```. <br>This would allegedly return `500 Internal Server Error` with the following response body:
+
+```
+failed to reload config: couldn't load configuration (--config.file="/etc/config/prometheus.yml"): parsing YAML file /etc/config/prometheus.yml: "http://helm-demo-helm:80" is not a valid hostname
+```
+
+- Update the `prometheus-values.yaml` file by removing `http://` from the targets:
+
+```
+serverFiles:
+  prometheus.yml:
+    scrape_configs:
+      - job_name: 'dotnet-app' # target-name-used-by-prometheus
+        static_configs:
+          - targets: ['helm-demo-helm:80'] # dotnet-app-pod-name:target-port
+```
+
+- Make a request using Postman: ```[POST] http://localhost:9090/-/reload```. <br>This would allegedly return `200 OK` with no response body.
+
+- Check Prometheus UI > Status > Targets - it would allegedly contain `dotnet-app` Target.
+
+✅ SUCCESS
 
 8. Go to Grafana UI and create new Visualization including the introduced metrics in the .NET Application (e.g. cpu_endpoint_requests_count):
 

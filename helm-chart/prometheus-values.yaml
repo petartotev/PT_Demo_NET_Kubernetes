@@ -1,6 +1,6 @@
 serverFiles:
   prometheus.yml:
     scrape_configs:
-      - job_name: 'dotnet-app'
+      - job_name: 'dotnet-app' # target-name-used-by-prometheus
         static_configs:
-          - targets: ['http://helm-demo-helm:80'] # Replace with your .NET app service and port
+          - targets: ['helm-demo-helm:80'] # dotnet-app-pod-name:target-port

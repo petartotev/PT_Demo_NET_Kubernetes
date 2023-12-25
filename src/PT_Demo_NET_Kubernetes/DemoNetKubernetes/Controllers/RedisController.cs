@@ -16,8 +16,12 @@ public class RedisController : ControllerBase
     {
         _logger = logger;
 
-        ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("127.0.0.1:6379");
+        _logger.LogInformation($"ConnectionMultiplexer.Connect(\"redis-master:6379\") about to be executed with password!");
+
+        ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("redis-master:6379,password=usOZHSp51Z");
         _database = redis.GetDatabase();
+
+        _logger.LogInformation($"ConnectionMultiplexer.Connect(\"redis-master:6379\") successful!");
     }
 
     [HttpPost(Name = "SetRedisValueByKey")]

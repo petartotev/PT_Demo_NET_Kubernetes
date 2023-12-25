@@ -102,6 +102,417 @@
 					"body": "failed to reload config: couldn't load configuration (--config.file=\"/etc/config/prometheus.yml\"): parsing YAML file /etc/config/prometheus.yml: \"http://helm-demo-helm:80\" is not a valid hostname\n"
 				}
 			]
+		},
+		{
+			"name": "Redis Set",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"Key\": \"maya\",\r\n    \"Value\": \"toteva\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://localhost:7143/redis/set",
+					"protocol": "https",
+					"host": [
+						"localhost"
+					],
+					"port": "7143",
+					"path": [
+						"redis",
+						"set"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "200 OK",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"Key\": \"maya\",\r\n    \"Value\": \"toteva\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://localhost:7143/redis/set",
+							"protocol": "https",
+							"host": [
+								"localhost"
+							],
+							"port": "7143",
+							"path": [
+								"redis",
+								"set"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "plain",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain; charset=utf-8"
+						},
+						{
+							"key": "Date",
+							"value": "Sun, 24 Dec 2023 18:56:21 GMT"
+						},
+						{
+							"key": "Server",
+							"value": "Kestrel"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						}
+					],
+					"cookie": [],
+					"body": "maya:toteva stored in Redis!"
+				}
+			]
+		},
+		{
+			"name": "Redis Get",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://localhost:7143/redis/get/maya",
+					"protocol": "https",
+					"host": [
+						"localhost"
+					],
+					"port": "7143",
+					"path": [
+						"redis",
+						"get",
+						"maya"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "200 OK",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://localhost:7143/redis/get/maya",
+							"protocol": "https",
+							"host": [
+								"localhost"
+							],
+							"port": "7143",
+							"path": [
+								"redis",
+								"get",
+								"maya"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "plain",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain; charset=utf-8"
+						},
+						{
+							"key": "Date",
+							"value": "Sun, 24 Dec 2023 18:56:34 GMT"
+						},
+						{
+							"key": "Server",
+							"value": "Kestrel"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						}
+					],
+					"cookie": [],
+					"body": "toteva"
+				}
+			]
+		},
+		{
+			"name": "CPU Do Load",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url-http-dotnet-app-service}}/cpu/doload/1",
+					"host": [
+						"{{url-http-dotnet-app-service}}"
+					],
+					"path": [
+						"cpu",
+						"doload",
+						"1"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "200 OK",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url-http-dotnet-app-service}}/cpu/doload/1",
+							"host": [
+								"{{url-http-dotnet-app-service}}"
+							],
+							"path": [
+								"cpu",
+								"doload",
+								"1"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "plain",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain; charset=utf-8"
+						},
+						{
+							"key": "Date",
+							"value": "Sun, 24 Dec 2023 19:46:19 GMT"
+						},
+						{
+							"key": "Server",
+							"value": "Kestrel"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						}
+					],
+					"cookie": [],
+					"body": "CPU intensive process completed!"
+				}
+			]
+		},
+		{
+			"name": "Memory Do Load",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url-http-dotnet-app-service}}/memory/doload/1",
+					"host": [
+						"{{url-http-dotnet-app-service}}"
+					],
+					"path": [
+						"memory",
+						"doload",
+						"1"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "200 OK",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url-http-dotnet-app-service}}/memory/doload/1",
+							"host": [
+								"{{url-http-dotnet-app-service}}"
+							],
+							"path": [
+								"memory",
+								"doload",
+								"1"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "plain",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain; charset=utf-8"
+						},
+						{
+							"key": "Date",
+							"value": "Sun, 24 Dec 2023 19:46:10 GMT"
+						},
+						{
+							"key": "Server",
+							"value": "Kestrel"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						}
+					],
+					"cookie": [],
+					"body": "Memory intensive process completed!"
+				}
+			]
+		},
+		{
+			"name": "Env Get Environment Variables",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url-http-dotnet-app-service}}/env/getenvvars",
+					"host": [
+						"{{url-http-dotnet-app-service}}"
+					],
+					"path": [
+						"env",
+						"getenvvars"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "200 OK",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url-http-dotnet-app-service}}/env/getenvvars",
+							"host": [
+								"{{url-http-dotnet-app-service}}"
+							],
+							"path": [
+								"env",
+								"getenvvars"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "plain",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain; charset=utf-8"
+						},
+						{
+							"key": "Date",
+							"value": "Sun, 24 Dec 2023 19:46:30 GMT"
+						},
+						{
+							"key": "Server",
+							"value": "Kestrel"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						}
+					],
+					"cookie": [],
+					"body": "DATABASE_PASSWORD: this-is-my-super-secret-connection-string\nAPP_CONFIG: exampleKey: exampleValue\n\n"
+				}
+			]
+		},
+		{
+			"name": "Metrics",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url-http-dotnet-app-service}}/metrics",
+					"host": [
+						"{{url-http-dotnet-app-service}}"
+					],
+					"path": [
+						"metrics"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "200 OK",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url-http-dotnet-app-service}}/metrics",
+							"host": [
+								"{{url-http-dotnet-app-service}}"
+							],
+							"path": [
+								"metrics"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "plain",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain; version=0.0.4; charset=utf-8"
+						},
+						{
+							"key": "Date",
+							"value": "Sun, 24 Dec 2023 19:46:40 GMT"
+						},
+						{
+							"key": "Server",
+							"value": "Kestrel"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						}
+					],
+					"cookie": [],
+					"body": "# HELP memory_endpoint_requests_count memory_endpoint_requests_count gets incremented on requests upon Memory endpoints.\n# TYPE memory_endpoint_requests_count counter\nmemory_endpoint_requests_count 1\n# HELP cpu_endpoint_requests_count cpu_endpoint_requests_count gets incremented on requests upon CPU endpoints.\n# TYPE cpu_endpoint_requests_count counter\ncpu_endpoint_requests_count 1\n# HELP env_endpoint_requests_count env_endpoint_requests_count gets incremented on requests upon ENV endpoints.\n# TYPE env_endpoint_requests_count counter\nenv_endpoint_requests_count 1\n# HELP dotnet_collection_count_total GC collection count\n# TYPE dotnet_collection_count_total counter\ndotnet_collection_count_total{generation=\"0\"} 0\ndotnet_collection_count_total{generation=\"1\"} 0\ndotnet_collection_count_total{generation=\"2\"} 0\n# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.\n# TYPE process_start_time_seconds gauge\nprocess_start_time_seconds 1703447165.312382\n# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.\n# TYPE process_cpu_seconds_total counter\nprocess_cpu_seconds_total 0.56\n# HELP process_virtual_memory_bytes Virtual memory size in bytes.\n# TYPE process_virtual_memory_bytes gauge\nprocess_virtual_memory_bytes 23813259264\n# HELP process_working_set_bytes Process working set\n# TYPE process_working_set_bytes gauge\nprocess_working_set_bytes 76537856\n# HELP process_private_memory_bytes Process private memory size\n# TYPE process_private_memory_bytes gauge\nprocess_private_memory_bytes 252403712\n# HELP process_open_handles Number of open handles\n# TYPE process_open_handles gauge\nprocess_open_handles 159\n# HELP process_num_threads Total number of threads\n# TYPE process_num_threads gauge\nprocess_num_threads 33\n# HELP dotnet_total_memory_bytes Total known allocated memory\n# TYPE dotnet_total_memory_bytes gauge\ndotnet_total_memory_bytes 4418848\n# HELP prometheus_net_metric_families Number of metric families currently registered.\n# TYPE prometheus_net_metric_families gauge\nprometheus_net_metric_families{metric_type=\"counter\"} 6\nprometheus_net_metric_families{metric_type=\"gauge\"} 12\nprometheus_net_metric_families{metric_type=\"summary\"} 0\nprometheus_net_metric_families{metric_type=\"histogram\"} 0\n# HELP prometheus_net_metric_instances Number of metric instances currently registered across all metric families.\n# TYPE prometheus_net_metric_instances gauge\nprometheus_net_metric_instances{metric_type=\"counter\"} 7\nprometheus_net_metric_instances{metric_type=\"gauge\"} 20\nprometheus_net_metric_instances{metric_type=\"summary\"} 0\nprometheus_net_metric_instances{metric_type=\"histogram\"} 0\n# HELP prometheus_net_metric_timeseries Number of metric timeseries currently generated from all metric instances.\n# TYPE prometheus_net_metric_timeseries gauge\nprometheus_net_metric_timeseries{metric_type=\"counter\"} 7\nprometheus_net_metric_timeseries{metric_type=\"gauge\"} 20\nprometheus_net_metric_timeseries{metric_type=\"summary\"} 0\nprometheus_net_metric_timeseries{metric_type=\"histogram\"} 0\n# HELP prometheus_net_exemplars_recorded_total Number of exemplars that were accepted into in-memory storage in the prometheus-net SDK.\n# TYPE prometheus_net_exemplars_recorded_total counter\nprometheus_net_exemplars_recorded_total 0\n# HELP prometheus_net_eventcounteradapter_sources_connected_total Number of event sources that are currently connected to the adapter.\n# TYPE prometheus_net_eventcounteradapter_sources_connected_total gauge\nprometheus_net_eventcounteradapter_sources_connected_total 4\n# HELP prometheus_net_meteradapter_instruments_connected Number of instruments that are currently connected to the adapter.\n# TYPE prometheus_net_meteradapter_instruments_connected gauge\nprometheus_net_meteradapter_instruments_connected 0\n"
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "url-http-dotnet-app-service",
+			"value": "http://localhost:30000",
+			"type": "string"
 		}
 	]
 }

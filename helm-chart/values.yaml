@@ -4,7 +4,7 @@ replicaCount: 1
 
 image:
   repository: petartotev/demonetkubernetes
-  tag: v1.0  # Replace with the desired tag
+  tag: latest  # Replace with the desired tag
   pullPolicy: IfNotPresent
 
 service:
@@ -20,3 +20,8 @@ autoscaling:
   targetCPUUtilizationPercentage: 50
   targetMemoryUtilizationPercentage: 50
   downscaleStabilizationDurationSeconds: 60
+
+dependencies:
+  - name: redis
+    version: any # Use the version of the Redis Helm chart you've installed
+    repository: https://charts.bitnami.com/bitnami

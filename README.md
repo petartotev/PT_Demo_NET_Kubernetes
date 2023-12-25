@@ -20,6 +20,7 @@
   - Grafana and Prometheus
     - [Grafana and Prometheus (Default Metrics)](#grafana-and-prometheus-default-metrics)
     - [Grafana and Prometheus (Custom Metrics)](#grafana-and-prometheus-custom-metrics)
+  - [Redis]()
 - [Teardown](#teardown)
 - [Commands](#commands)
   - [docker](#docker)
@@ -45,7 +46,7 @@ kubectl --help
 
 4. Install [Helm](https://helm.sh/docs/intro/install).
 
-On Windows, run Power Shell `as Admin` and execute the following command:
+In Windows, run Power Shell `as Admin` and execute the following command:
 
 ```
 choco install kubernetes-helm
@@ -1536,14 +1537,220 @@ serverFiles:
 
 ![grafana-cpu-1](./res/grafana-cpu-1.png)
 
+## Redis
+
+0. Reset Kubernetes Cluster by doing all the steps described in the [Teardown](#teardown) section.
+
+1. Implement `RedisController` in the .NET Application:
+
+```
+[ApiController]
+[Route("[controller]")]
+public class RedisController : ControllerBase
+{
+    private readonly IDatabase _database;
+
+    public RedisController()
+    {
+        ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("127.0.0.1:6379");
+        _database = redis.GetDatabase();
+    }
+
+    [HttpPost(Name = "SetRedisValueByKey")]
+    [Route("set")]
+    public ObjectResult Set(RedisObject obj)
+    {
+        if (_database.StringSet(obj.Key, obj.Value)) return Ok();
+
+        return BadRequest();
+    }
+
+    [HttpGet(Name = "GetRedisKeyByValue")]
+    [Route("get/{key}")]
+    public async Task<ObjectResult> GetAsync(string key)
+    {
+        var value = await _database.StringGetAsync(key);
+
+        if (!value.IsNull && value.HasValue) return Ok();
+
+        return NotFound();
+    }
+}
+```
+
+2. Test the endpoints locally by using HTTPS on port 7143:
+
+```
+[POST] https://localhost:7143/redis/set
+ [GET] https://localhost:7143/redis/get/maya
+```
+
+⚠️ WARNING: Note that using "127.0.0.1:6379" works perfectly fine when testing locally with a running instance.<br>
+But once you run the .NET Application in a Kubernetes cluster, you will `need to change the connection string` as described in a following step!
+
+3. Use Redis Helm chart to deploy Redis to your Kubernetes cluster:
+
+```
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install redis bitnami/redis
+```
+
+![redis-1](./res/redis-1.png)
+
+This will allegedly invoke 4 pods:
+- `redis-master-0`
+- `redis-replicas-0`
+- `redis-replicas-1`
+- `redis-replicas-2`
+
+Since we are using the `Bitnami Redis Helm chart`, it deploys a Redis master and replica(s) by default for better fault tolerance and high availability.
+
+⚠️ WARNING: For the sake of the demo we will be using only the `redis-master-0`.<br>
+In reality, `redis-master`-s should be used for `write` operations and `redis-replicas`-s should be used for `read` operations.
+
+4. In Windows, open Power Shell `as Admin` and execute the following command in order to get the password for `redis-master`:
+
+```
+kubectl get secret redis -o jsonpath='{.data.redis-password}' | ForEach-Object { [System.Text.Encoding]::Utf8.GetString([System.Convert]::FromBase64String($_)) }
+```
+
+Output:
+```
+LWR1DJaKCu
+```
+
+5. Replace all occurrences of `127.0.0.1:6379` with `redis-master:6379` in the constructor of `RedisController` and add the password extracted in step 4 into the connection string:
+
+```
+    public RedisController()
+    {
+        ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("redis-master:6379,password=LWR1DJaKCu");
+        _database = redis.GetDatabase();
+    }
+```
+
+⚠️ WARNING: This hardcoded password smells!
+When you upgrade your Helm Chart and get the Redis pods restarted, this password will change and your Application will fail!<br>
+Future me, think of a better way!
+
+6. Once you have all the changes in the .NET Application ready, build a new Docker image and push it as `latest` to Docker Hub by executing the following command from wherever your `Dockerfile` is:
+
+```
+ docker build -t petartotev/demonetkubernetes:latest .
+ docker push petartotev/demonetkubernetes:latest
+```
+
+7. (Optional) As I noticed, executing `docker push` updates the existing local Docker Image too:
+
+![redis-2](./res/redis-2.png)
+
+So, just to be 100% sure, I will delete the Docker image and pull it again, despite of the fact it may not be necessary:
+
+```
+docker images
+docker image rm --force petartotev/demonetkubernetes
+docker pull petartotev/demonetkubernetes
+```
+
+Output:
+```
+Untagged: petartotev/demonetkubernetes:latest
+Untagged: petartotev/demonetkubernetes@sha256:5e2a3a0503916de6e1bcd9683ef058c1fef25d461cb2c4db41b6816395778810
+Deleted: sha256:65bdb2e17013d93d0f0968530761325d086f1d5151a85afcb6200a88fb70c36d
+```
+
+⚠️ WARNING: This didn't achieve the expected result. Just delete it from Docker Desktop!
+
+8. Update `values.yaml` in order to include the Redis `dependency`:
+
+```
+# helm-demo/values.yaml
+
+replicaCount: 1
+
+image:
+  ...
+
+service:
+  ...
+
+autoscaling:
+  ...
+
+dependencies:
+  - name: redis
+    version: any # Use the version of the Redis Helm chart you've installed
+    repository: https://charts.bitnami.com/bitnami
+```
+
+9. Helm Install or Helm Upgrade:
+
+```
+helm install helm-demo ./helm-chart
+```
+
+Output:
+```
+NAME: helm-demo
+LAST DEPLOYED: Sun Dec 24 23:36:54 2023
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+```
+
+or 
+
+```
+helm dependency update ./helm-chart
+helm upgrade helm-demo ./helm-chart
+```
+
+10. Test Redis using the endpoints of `RedisController`:
+
+- Set key-value:
+```
+[POST] http://localhost:30000/redis/set
+
+Body:
+{
+    "Key": "petar",
+    "Value": "totev"
+}
+```
+
+Output:
+```
+200 OK
+petar:totev stored in Redis!
+```
+
+- Get value:
+
+```
+[GET] http://localhost:30000/redis/get/petar
+```
+
+Output:
+```
+200 OK
+totev
+```
+
+✅ SUCCESS
+
 ## Teardown
 
-1. In order to reset the K8S cluster, you can do any of the following:
-- Go to Docker > Settings > Kubernetes > [Reset Kubernetes Cluster]
+1. In order to reset the K8S cluster, open Docker Desktop:
+
+```
+Settings > Kubernetes > [Reset Kubernetes Cluster]
+```
 
 ![reset-kubernetes-cluster](./res/scrot_demo_02.png)
 
-- Try to remove the Kubernetes infrastructure manually by using the following command (not recommended):
+💡 SUGGESTION: There should be an option to remove Kubernetes infrastructure manually by executing a series of such commands, but this approach was not investigated, so I don't recommend my future me to use it:
+
 ```
 kubectl delete deployments,services --all
 ```
@@ -1559,6 +1766,7 @@ Output:
 NAME                    URL
 prometheus-community    https://prometheus-community.github.io/helm-charts
 grafana                 https://grafana.github.io/helm-charts
+bitnami                 https://charts.bitnami.com/bitnami
 ```
 
 3. If any, you can delete them:
@@ -1566,12 +1774,14 @@ grafana                 https://grafana.github.io/helm-charts
 ```
 helm repo remove prometheus-community
 helm repo remove grafana
+helm repo remove bitnami
 ```
 
 Output:
 ```
 "prometheus-community" has been removed from your repositories
 "grafana" has been removed from your repositories
+"bitnami" has been removed from your repositories
 ```
 
 ## Commands
@@ -1584,8 +1794,10 @@ Output:
 ```docker tag petartotev/demonetkubernetes:latest petartotev/demonetkubernetes:v1.0```  
 ```docker push petartotev/demonetkubernetes:v1.0```  
 
+```docker image rm --force petartotev/demonetkubernetes```  
+
 ### kubectl
-```kubectl version```
+```kubectl version```  
 ```
 Client Version: v1.28.2
 Kustomize Version: v5.0.4-0.20230601165947-6ce0bf390ce3
@@ -1613,7 +1825,7 @@ Server Version: v1.28.2
 
 ```kubectl delete deployments,services --all```  
 
-```kubectl api-versions```
+```kubectl api-versions```  
 ```
 ...
 autoscaling/v1
@@ -1622,7 +1834,7 @@ autoscaling/v2
 ```
 
 ### helm
-```helm version```
+```helm version```  
 ```
 version.BuildInfo{Version:"v3.13.1", GitCommit:"3547a4b5bf5edb5478ce352e18858d8a552a4110", GitTreeState:"clean", GoVersion:"go1.20.8"}
 ```
@@ -1633,7 +1845,7 @@ version.BuildInfo{Version:"v3.13.1", GitCommit:"3547a4b5bf5edb5478ce352e18858d8a
 ```helm upgrade helm-demo ./helm-chart```  
 ```helm uninstall helm-demo```  
 
-```helm list```
+```helm list```  
 
 ```helm get values helm-demo```  
 
@@ -1649,6 +1861,10 @@ version.BuildInfo{Version:"v3.13.1", GitCommit:"3547a4b5bf5edb5478ce352e18858d8a
 
 ```helm repo remove prometheus-community```  
 ```helm repo remove grafana```  
+
+```helm dependency update ./helm-chart```  
+💡 SUGGESTION: Execute after `dependencies:` section is added in `values.yaml` file.
+
 
 ## Terms
 - [Helm](https://helm.sh/docs/) = the package manager for Kubernetes

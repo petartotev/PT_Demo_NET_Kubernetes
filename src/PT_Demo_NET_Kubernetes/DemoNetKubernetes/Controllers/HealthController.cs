@@ -2,35 +2,34 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Reflection;
 
-namespace DemoNetKubernetes.Controllers
+namespace DemoNetKubernetes.Controllers;
+
+[ApiController]
+[Route("[controller]")]
+public class HealthController : ControllerBase
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class HealthController : ControllerBase
+    private readonly HealthCheckService _healthCheckService;
+
+    public HealthController(HealthCheckService healthCheckService)
     {
-        private readonly HealthCheckService _healthCheckService;
+        _healthCheckService = healthCheckService;
+    }
 
-        public HealthController(HealthCheckService healthCheckService)
+    [HttpGet]
+    public async Task<IActionResult> CheckHealth()
+    {
+        var healthResult = await _healthCheckService.CheckHealthAsync();
+
+        return Ok(new
         {
-            _healthCheckService = healthCheckService;
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> CheckHealth()
-        {
-            var healthResult = await _healthCheckService.CheckHealthAsync();
-
-            return Ok(new
+            Service = Assembly.GetExecutingAssembly().GetName().Name,
+            Status = healthResult.Status.ToString(),
+            HealthChecks = healthResult.Entries.Select(entry => new
             {
-                Service = Assembly.GetExecutingAssembly().GetName().Name,
-                Status = healthResult.Status.ToString(),
-                HealthChecks = healthResult.Entries.Select(entry => new
-                {
-                    Name = entry.Key,
-                    Status = entry.Value.Status.ToString(),
-                    Description = entry.Value.Description
-                })
-            });
-        }
+                Name = entry.Key,
+                Status = entry.Value.Status.ToString(),
+                Description = entry.Value.Description
+            })
+        });
     }
 }

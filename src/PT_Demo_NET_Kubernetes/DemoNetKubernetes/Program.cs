@@ -1,3 +1,4 @@
+using DemoNetKubernetes.HealthCheck;
 using Prometheus;
 
 namespace DemoNetKubernetes;
@@ -16,6 +17,10 @@ public class Program
         builder.Services.AddSwaggerGen();
 
         builder.Services.UseHttpClientMetrics();
+
+        builder.Services.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheckService>("database_health_check")
+            .AddCheck<RedisHealthCheckService>("redis_health_check");
 
         var app = builder.Build();
 

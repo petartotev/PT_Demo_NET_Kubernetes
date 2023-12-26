@@ -20,7 +20,8 @@
   - Grafana and Prometheus
     - [Grafana and Prometheus (Default Metrics)](#grafana-and-prometheus-default-metrics)
     - [Grafana and Prometheus (Custom Metrics)](#grafana-and-prometheus-custom-metrics)
-  - [Redis]()
+  - [Redis](#redis)
+  - [Health Checks](#health-checks)
 - [Teardown](#teardown)
 - [Commands](#commands)
   - [docker](#docker)
@@ -1586,7 +1587,7 @@ public class RedisController : ControllerBase
 ```
 
 ⚠️ WARNING: Note that using "127.0.0.1:6379" works perfectly fine when testing locally with a running instance.<br>
-But once you run the .NET Application in a Kubernetes cluster, you will `need to change the connection string` as described in a following step!
+But once you run the .NET Application in a Kubernetes cluster, you will `need to change the connection string` as described in step 5!
 
 3. Use Redis Helm chart to deploy Redis to your Kubernetes cluster:
 
@@ -1739,6 +1740,239 @@ totev
 
 ✅ SUCCESS
 
+## Health Checks
+
+1. Implement a DatabaseHealthCheckService that implements `IHealthCheck`:
+
+```
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+
+namespace DemoNetKubernetes.HealthCheck
+{
+    public class DatabaseHealthCheckService : IHealthCheck
+    {
+        private readonly string _connectionString;
+
+        public DatabaseHealthCheckService(string connectionString)
+        {
+            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        }
+
+        public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                //using (var connection = new SqlConnection(_connectionString))
+                //{
+                //    await connection.OpenAsync(cancellationToken);
+                //}
+
+                return HealthCheckResult.Healthy("Database is reachable.");
+            }
+            catch (Exception ex)
+            {
+                return HealthCheckResult.Unhealthy("Database connection failure!", ex);
+            }
+        }
+    }
+}
+```
+
+You can also implement a similar `RedisHealthCheckService`.
+
+2. In Program.cs, configure health checks and register the needed HealthCheckService-s:
+
+```
+public class Program
+{
+    public static void Main(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(args);
+
+        ...
+
+        builder.Services.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheckService>("database_health_check")
+            .AddCheck<RedisHealthCheckService>("redis_health_check");
+
+        var app = builder.Build();
+
+        ...
+
+        app.Run();
+    }
+}
+```
+
+3. Implement `HealthController : ControllerBase`:
+
+```
+[ApiController]
+[Route("[controller]")]
+public class HealthController : ControllerBase
+{
+    private readonly HealthCheckService _healthCheckService;
+
+    public HealthController(HealthCheckService healthCheckService)
+    {
+        _healthCheckService = healthCheckService;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> CheckHealth()
+    {
+        var healthResult = await _healthCheckService.CheckHealthAsync();
+
+        return Ok(new
+        {
+            Service = Assembly.GetExecutingAssembly().GetName().Name,
+            Status = healthResult.Status.ToString(),
+            HealthChecks = healthResult.Entries.Select(entry => new
+            {
+                Name = entry.Key,
+                Status = entry.Value.Status.ToString(),
+                Description = entry.Value.Description
+            })
+        });
+    }
+}
+```
+
+4. Test locally:
+
+```
+[GET] https://localhost:7143/health
+```
+
+Response:
+```
+200 OK
+
+{
+    "service": "DemoNetKubernetes",
+    "status": "Healthy",
+    "healthChecks": [
+        {
+            "name": "database_health_check",
+            "status": "Healthy",
+            "description": "Database is reachable."
+        },
+        {
+            "name": "redis_health_check",
+            "status": "Healthy",
+            "description": "Redis is reachable."
+        }
+    ]
+}
+```
+
+5. Build Docker Image and push to Docker Hub:
+
+```
+docker build -t petartotev/demonetkubernetes:latest .
+docker push petartotev/demonetkubernetes:latest
+```
+
+This will allegedly also update the local `petartotev/demonetkubernetes` Docker Image.
+
+6. Update `deployment.yaml` to include `readinessProbe`, `livenessProbe` and `startupProbe`:
+
+```
+# helm-chart/templates/deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 80
+          resources:
+            ...
+          env:
+            ...
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30
+```
+
+7. Uninstall the current Helm Chart and install it from scratch:
+
+```
+helm uninstall helm-demo
+helm install helm-demo ./helm-chart
+```
+
+Output:
+
+```
+NAME: helm-demo
+LAST DEPLOYED: Mon Dec 25 08:23:47 2023
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+```
+
+8. Test:
+
+```
+[GET] http://localhost:30000/health
+```
+
+Response:
+```
+200 OK
+
+{
+    "service": "DemoNetKubernetes",
+    "status": "Healthy",
+    "healthChecks": [
+        {
+            "name": "database_health_check",
+            "status": "Healthy",
+            "description": "Database is reachable."
+        },
+        {
+            "name": "redis_health_check",
+            "status": "Healthy",
+            "description": "Redis is reachable."
+        }
+    ]
+}
+```
+
+✅ SUCCESS
+
 ## Teardown
 
 1. In order to reset the K8S cluster, open Docker Desktop:
@@ -1874,3 +2108,4 @@ version.BuildInfo{Version:"v3.13.1", GitCommit:"3547a4b5bf5edb5478ce352e18858d8a
 - https://github.com/kubernetes-sigs/metrics-server/issues/1025
 - https://github.com/kubernetes-sigs/metrics-server#requirements
 - https://stackoverflow.com/questions/59448042/kubernetes-hpa-deployment-cannot-find-target-resource
+- https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/

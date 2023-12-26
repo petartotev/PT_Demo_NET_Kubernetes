@@ -26,7 +26,7 @@ public class RedisController : ControllerBase
 
     [HttpPost(Name = "SetRedisValueByKey")]
     [Route("set")]
-    public ObjectResult Set(RedisObject obj)
+    public ObjectResult Set(RedisEntity obj)
     {
         if (_database.StringSet(obj.Key, obj.Value)) return Ok($"{obj.Key}:{obj.Value} stored in Redis!");
 

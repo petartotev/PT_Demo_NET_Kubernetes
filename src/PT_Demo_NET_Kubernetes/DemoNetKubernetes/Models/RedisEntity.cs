@@ -1,6 +1,6 @@
 ﻿namespace DemoNetKubernetes.Models;
 
-public class RedisObject
+public class RedisEntity
 {
     public string Key { get; set; }
     public string Value { get; set; }

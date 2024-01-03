@@ -80,9 +80,9 @@
 					}
 				},
 				"url": {
-					"raw": "{{url-https-dotnet-app-local}}/redis/set",
+					"raw": "{{url-http-dotnet-app-service}}/redis/set",
 					"host": [
-						"{{url-https-dotnet-app-local}}"
+						"{{url-http-dotnet-app-service}}"
 					],
 					"path": [
 						"redis",
@@ -141,6 +141,51 @@
 					],
 					"cookie": [],
 					"body": "maya:toteva stored in Redis!"
+				},
+				{
+					"name": "500 Internal Server Error",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"Key\": \"maya\",\r\n    \"Value\": \"toteva\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url-http-dotnet-app-service}}/redis/set",
+							"host": [
+								"{{url-http-dotnet-app-service}}"
+							],
+							"path": [
+								"redis",
+								"set"
+							]
+						}
+					},
+					"status": "Internal Server Error",
+					"code": 500,
+					"_postman_previewlanguage": "plain",
+					"header": [
+						{
+							"key": "Content-Length",
+							"value": "0"
+						},
+						{
+							"key": "Date",
+							"value": "Wed, 03 Jan 2024 19:03:05 GMT"
+						},
+						{
+							"key": "Server",
+							"value": "Kestrel"
+						}
+					],
+					"cookie": [],
+					"body": null
 				}
 			]
 		},
@@ -150,9 +195,9 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{url-https-dotnet-app-local}}/redis/get/maya",
+					"raw": "{{url-http-dotnet-app-service}}/redis/get/maya",
 					"host": [
-						"{{url-https-dotnet-app-local}}"
+						"{{url-http-dotnet-app-service}}"
 					],
 					"path": [
 						"redis",
@@ -168,12 +213,10 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://localhost:7143/redis/get/maya",
-							"protocol": "https",
+							"raw": "{{url-http-dotnet-app-service}}/redis/get/maya",
 							"host": [
-								"localhost"
+								"{{url-http-dotnet-app-service}}"
 							],
-							"port": "7143",
 							"path": [
 								"redis",
 								"get",
@@ -191,7 +234,7 @@
 						},
 						{
 							"key": "Date",
-							"value": "Sun, 24 Dec 2023 18:56:34 GMT"
+							"value": "Wed, 03 Jan 2024 19:31:35 GMT"
 						},
 						{
 							"key": "Server",
@@ -204,6 +247,149 @@
 					],
 					"cookie": [],
 					"body": "toteva"
+				},
+				{
+					"name": "404 NotFound",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url-http-dotnet-app-service}}/redis/get/maya",
+							"host": [
+								"{{url-http-dotnet-app-service}}"
+							],
+							"path": [
+								"redis",
+								"get",
+								"maya"
+							]
+						}
+					},
+					"status": "Not Found",
+					"code": 404,
+					"_postman_previewlanguage": "plain",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain; charset=utf-8"
+						},
+						{
+							"key": "Date",
+							"value": "Wed, 03 Jan 2024 19:31:57 GMT"
+						},
+						{
+							"key": "Server",
+							"value": "Kestrel"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						}
+					],
+					"cookie": [],
+					"body": "Redis value was not found by key maya1!"
+				}
+			]
+		},
+		{
+			"name": "Redis Delete",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{url-http-dotnet-app-service}}/redis/delete/maya",
+					"host": [
+						"{{url-http-dotnet-app-service}}"
+					],
+					"path": [
+						"redis",
+						"delete",
+						"maya"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "200 OK",
+					"originalRequest": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{url-http-dotnet-app-service}}/redis/delete/maya",
+							"host": [
+								"{{url-http-dotnet-app-service}}"
+							],
+							"path": [
+								"redis",
+								"delete",
+								"maya"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "plain",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain; charset=utf-8"
+						},
+						{
+							"key": "Date",
+							"value": "Wed, 03 Jan 2024 19:14:55 GMT"
+						},
+						{
+							"key": "Server",
+							"value": "Kestrel"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						}
+					],
+					"cookie": [],
+					"body": "Redis key deleted!"
+				},
+				{
+					"name": "404 NotFound",
+					"originalRequest": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{url-http-dotnet-app-service}}/redis/delete/maya",
+							"host": [
+								"{{url-http-dotnet-app-service}}"
+							],
+							"path": [
+								"redis",
+								"delete",
+								"maya"
+							]
+						}
+					},
+					"status": "Not Found",
+					"code": 404,
+					"_postman_previewlanguage": "plain",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain; charset=utf-8"
+						},
+						{
+							"key": "Date",
+							"value": "Wed, 03 Jan 2024 19:31:05 GMT"
+						},
+						{
+							"key": "Server",
+							"value": "Kestrel"
+						},
+						{
+							"key": "Transfer-Encoding",
+							"value": "chunked"
+						}
+					],
+					"cookie": [],
+					"body": "Redis key not found!"
 				}
 			]
 		},

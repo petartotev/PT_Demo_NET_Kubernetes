@@ -662,7 +662,7 @@ REVISION: 9
 TEST SUITE: None
 ```
 
-⚠️ WARNING: Output claims that `targetMemoryUtilizationPercentage` is unknown!<br>
+⚠️ WARNING: Output claims that `targetMemoryUtilizationPercentage` is an unknown field!<br>
 It is strongly recommended for the API Version to be updated from `autoscaling/v1` to `autoscaling/v2`.
 
 5. Check the status of HPA:
